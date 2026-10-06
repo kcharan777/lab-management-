@@ -1,0 +1,27 @@
+{
+  "name": "labpulse-root",
+  "version": "1.0.0",
+  "description": "College Lab Issue & Complaint Management System",
+  "scripts": {
+    "server": "npm --prefix server start",
+    "server:dev": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "client:build": "npm --prefix client run build",
+    "test:backend": "npm --prefix server run test:health",
+    "test:models": "npm --prefix server run test:models",
+    "test:auth": "npm --prefix server run test:auth",
+    "test:rbac": "npm --prefix server run test:rbac",
+    "test:complaints": "npm --prefix server run test:complaints",
+    "test:upload": "npm --prefix server run test:upload",
+    "test:hod": "npm --prefix server run test:hod",
+    "test:lab-incharge": "npm --prefix server run test:lab-incharge",
+    "test:main-admin": "npm --prefix server run test:main-admin",
+    "test:tracking": "npm --prefix server run test:tracking",
+    "test:notifications": "npm --prefix server run test:notifications",
+    "test:security": "npm --prefix server run test:security",
+    "test:e2e": "npm --prefix server run test:e2e"
+  },
+  "keywords": ["labpulse", "complaint-system", "college-lab-management"],
+  "author": "Antigravity Team",
+  "license": "ISC"
+}

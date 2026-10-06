@@ -1,0 +1,35 @@
+{
+  "name": "labpulse-server",
+  "version": "1.0.0",
+  "description": "College Lab Issue & Complaint Management System Backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test:health": "node test-health.js",
+    "test:models": "node test-models.js",
+    "test:auth": "node test-auth.js",
+    "test:rbac": "node test-rbac.js",
+    "test:complaints": "node test-complaints.js",
+    "test:upload": "node test-upload.js",
+    "test:hod": "node test-hod.js",
+    "test:lab-incharge": "node test-lab-incharge.js",
+    "test:main-admin": "node test-main-admin.js",
+    "test:tracking": "node test-tracking.js",
+    "test:notifications": "node test-notifications.js",
+    "test:security": "node test-security.js",
+    "test:e2e": "node test-e2e.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.10.1",
+    "multer": "^1.4.5-lts.1"
+  }
+}
