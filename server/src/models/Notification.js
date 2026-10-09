@@ -8,9 +8,20 @@ const notificationSchema = new mongoose.Schema(
       required: [true, 'Recipient is required'],
       index: true,
     },
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     complaintId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Complaint',
+      default: null,
+      index: true,
+    },
+    complaintCustomId: {
+      type: String,
+      trim: true,
       default: null,
     },
     title: {
@@ -25,8 +36,27 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['STATUS_UPDATE', 'VERIFICATION_REQUIRED', 'ASSIGNMENT', 'RESOLUTION', 'REJECTION'],
+      enum: [
+        'SUBMITTED_TO_LAB_INCHARGE',
+        'LAB_INCHARGE_APPROVED',
+        'HOD_APPROVED',
+        'ASSIGNED_TO_REPAIR_ASSISTANT',
+        'IN_PROGRESS',
+        'RESOLVED',
+        'CLOSED',
+        'REJECTED',
+        'STATUS_UPDATE',
+        'VERIFICATION_REQUIRED',
+        'ASSIGNMENT',
+        'RESOLUTION',
+        'REJECTION',
+      ],
       default: 'STATUS_UPDATE',
+    },
+    link: {
+      type: String,
+      trim: true,
+      default: null,
     },
     isRead: {
       type: Boolean,
@@ -43,6 +73,8 @@ const notificationSchema = new mongoose.Schema(
     timestamps: false,
   }
 );
+
+notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 
 module.exports = {
   Notification: mongoose.model('Notification', notificationSchema),

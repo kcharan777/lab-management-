@@ -8,20 +8,56 @@ const statusHistorySchema = new mongoose.Schema(
       required: [true, 'Complaint reference is required'],
       index: true,
     },
-    status: {
+    action: {
       type: String,
-      required: [true, 'Status is required'],
+      required: [true, 'Action is required'],
       trim: true,
     },
-    updatedBy: {
+    previousStatus: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    newStatus: {
+      type: String,
+      required: [true, 'New status is required'],
+      trim: true,
+      index: true,
+    },
+    user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'User who updated the status is required'],
+      required: [true, 'User who performed action is required'],
+    },
+    userName: {
+      type: String,
+      trim: true,
+      default: 'Authorized User',
+    },
+    userRole: {
+      type: String,
+      trim: true,
+      default: 'STUDENT',
     },
     remarks: {
       type: String,
       trim: true,
       default: '',
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    assignmentChanges: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    resolutionDetails: {
+      type: String,
+      trim: true,
+      default: null,
     },
     createdAt: {
       type: Date,

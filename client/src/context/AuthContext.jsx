@@ -64,6 +64,14 @@ export const AuthProvider = ({ children }) => {
     throw new Error(res.message || 'Registration failed');
   };
 
+  const forgotPassword = async (email) => {
+    return await api.post('/auth/forgot-password', { email });
+  };
+
+  const resetPassword = async (token, newPassword) => {
+    return await api.post('/auth/reset-password', { token, newPassword });
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -80,8 +88,10 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     register,
+    forgotPassword,
+    resetPassword,
     logout,
-    setUser
+    setUser,
   };
 
   return (

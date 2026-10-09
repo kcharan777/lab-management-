@@ -1,9 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
-  <rect width="40" height="40" rx="10" fill="#1D4ED8"/>
-  <rect x="1" y="1" width="38" height="38" rx="9" stroke="white" stroke-opacity="0.2" stroke-width="1"/>
-  <!-- Beaker / Tech Diagnostic Hexagon Mark -->
-  <path d="M14 11H26M18 11V16.5L11.5 27C10.5 28.6 11.6 30.5 13.5 30.5H26.5C28.4 30.5 29.5 28.6 28.5 27L22 16.5V11" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- Pulse Diagnostic wave inside liquid -->
-  <path d="M15 25.5L18.5 25.5L20 22L22 27.5L23.5 25.5L25 25.5" stroke="#93C5FD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="20" cy="18" r="1.2" fill="#93C5FD"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="shieldGrad" x1="6" y1="4" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E40AF"/>
+      <stop offset="100%" stop-color="#1E3A8A"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="16" y1="14" x2="32" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#60A5FA"/>
+    </linearGradient>
+    <filter id="glow" x="12" y="18" width="24" height="16" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#38BDF8" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Outer Rounded Shield Container -->
+  <path d="M24 4L9 9.5V22C9 32.5 15.5 41.2 24 44C32.5 41.2 39 32.5 39 22V9.5L24 4Z" fill="url(#shieldGrad)"/>
+  <path d="M24 6L11 10.8V21.8C11 31.2 16.7 39.1 24 41.6C31.3 39.1 37 31.2 37 21.8V10.8L24 6Z" stroke="white" stroke-opacity="0.15" stroke-width="1.2"/>
+
+  <!-- Precision Laboratory Beaker Geometric Silhouette -->
+  <path d="M19 14H29M22.5 14V19.5L16.5 29.5C15.6 31 16.7 33 18.5 33H29.5C31.3 33 32.4 31 31.5 29.5L25.5 19.5V14" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Liquid Surface Line -->
+  <path d="M18.8 26.5H29.2" stroke="white" stroke-opacity="0.3" stroke-width="1.2" stroke-dasharray="2 1.5"/>
+
+  <!-- Active Telemetry Pulse Wave (ECG / Diagnostic Pulse) -->
+  <path d="M15 28.5H19L21 23.5L23.5 32L26 27L28 28.5H33" stroke="url(#accentGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+
+  <!-- Core Status Node / Laser Dot -->
+  <circle cx="24" cy="11.5" r="1.5" fill="#38BDF8"/>
 </svg>

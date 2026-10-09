@@ -1,12 +1,17 @@
 import api from '../api/axios';
 
 export const hodService = {
-  // Get all pending complaints awaiting HOD sign-off
+  // Get pending complaints awaiting HOD sign-off
   getPendingComplaints: async () => {
     return await api.get('/hod/complaints/pending');
   },
 
-  // Verify complaint and route to Lab Incharge
+  // Get all departmental complaints with live status and history
+  getAllComplaints: async (params = {}) => {
+    return await api.get('/hod/complaints/all', { params });
+  },
+
+  // Verify complaint and route to Admin
   verifyComplaint: async (id, remarks) => {
     return await api.patch(`/hod/complaints/${id}/verify`, { remarks });
   },

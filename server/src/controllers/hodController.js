@@ -6,9 +6,6 @@ const {
 } = require('../models');
 const ApiResponse = require('../utils/apiResponse');
 
-/**
- * Helper to find complaint by MongoDB _id or sequential complaintId
- */
 const findComplaint = async (id) => {
   if (id.startsWith('CMP-') || id.startsWith('LP-')) {
     return await Complaint.findOne({ complaintId: id });
@@ -18,24 +15,25 @@ const findComplaint = async (id) => {
 
 /**
  * @route   GET /api/hod/complaints/pending
- * @desc    Get all complaints awaiting HOD verification
+ * @desc    Step 3: Get all requests verified by Lab In-Charge awaiting HOD review
  * @access  Private (HOD, MAIN_ADMIN)
  */
 const getPendingComplaints = async (req, res, next) => {
   try {
     const query = {
-      status: { $in: ['HOD_VERIFICATION', 'SUBMITTED'] },
+      status: { $in: ['LAB_INCHARGE_APPROVED', 'HOD_VERIFICATION'] },
     };
 
-    // If caller is HOD, filter by department
+    // Scoped strictly to the HOD's department
     if (req.user.role === 'HOD' && req.user.department) {
-      const deptStudents = await User.find({ department: req.user.department }).select('_id');
-      query.studentId = { $in: deptStudents.map((s) => s._id) };
+      query.department = req.user.department;
     }
 
     const complaints = await Complaint.find(query)
       .sort({ createdAt: -1 })
-      .populate('studentId', 'name email department')
+      .populate('reporter', 'name email department rollNumber phone')
+      .populate('labInchargeVerification.verifiedBy', 'name role email department')
+      .populate('labId', 'name code location status')
       .lean();
 
     return ApiResponse.success(
@@ -44,7 +42,7 @@ const getPendingComplaints = async (req, res, next) => {
         complaints,
         total: complaints.length,
       },
-      'Pending HOD complaints retrieved successfully.'
+      'Pending HOD review requests retrieved successfully.'
     );
   } catch (error) {
     next(error);
@@ -52,78 +50,147 @@ const getPendingComplaints = async (req, res, next) => {
 };
 
 /**
+ * @route   GET /api/hod/complaints/all
+ * @desc    Get all department requests for HOD dashboard (awaiting review, approved, active repairs, resolved)
+ * @access  Private (HOD, MAIN_ADMIN)
+ */
+const getAllDepartmentComplaints = async (req, res, next) => {
+  try {
+    const { status, search } = req.query;
+    const query = {};
+
+    if (req.user.role === 'HOD' && req.user.department) {
+      query.department = req.user.department;
+    }
+
+    if (status && status !== 'ALL') {
+      query.status = status;
+    }
+
+    if (search && search.trim()) {
+      query.$or = [
+        { complaintId: { $regex: search.trim(), $options: 'i' } },
+        { labName: { $regex: search.trim(), $options: 'i' } },
+        { systemNumber: { $regex: search.trim(), $options: 'i' } },
+        { description: { $regex: search.trim(), $options: 'i' } },
+      ];
+    }
+
+    const complaints = await Complaint.find(query)
+      .sort({ createdAt: -1 })
+      .populate('reporter', 'name email rollNumber')
+      .populate('labInchargeVerification.verifiedBy', 'name role')
+      .populate('hodVerification.verifiedBy', 'name role')
+      .populate('adminAction.assignedAssistant', 'name role phone')
+      .lean();
+
+    // Summary counts for HOD dashboard
+    const all = await Complaint.find(
+      req.user.role === 'HOD' ? { department: req.user.department } : {}
+    ).select('status').lean();
+
+    const stats = {
+      awaitingReview: all.filter(c => ['LAB_INCHARGE_APPROVED', 'HOD_VERIFICATION'].includes(c.status)).length,
+      approvedToAdmin: all.filter(c => c.status === 'HOD_APPROVED').length,
+      activeRepairs: all.filter(c => ['ADMIN_REVIEW', 'ASSIGNED_TO_REPAIR_ASSISTANT', 'IN_PROGRESS', 'ON_HOLD', 'ACCEPTED'].includes(c.status)).length,
+      resolved: all.filter(c => ['RESOLVED', 'CLOSED'].includes(c.status)).length,
+      rejected: all.filter(c => c.status === 'REJECTED').length,
+    };
+
+    return ApiResponse.success(res, { complaints, stats }, 'Department requests retrieved.');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @route   PATCH /api/hod/complaints/:id/verify
- * @desc    Verify a student complaint and escalate to Lab Incharge
+ * @desc    Step 3: HOD approves request -> status HOD_APPROVED -> forwarded to Admin
  * @access  Private (HOD, MAIN_ADMIN)
  */
 const verifyComplaint = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { remarks = 'Verified by HOD. Forwarded to Lab Incharge for hardware inspection.' } = req.body;
+    const { remarks = 'Departmental approval granted. Forwarded to Admin for work order generation and repair dispatch.' } = req.body;
 
     const complaint = await findComplaint(id);
     if (!complaint) {
-      return ApiResponse.error(res, 'Complaint not found.', 404);
+      return ApiResponse.error(res, 'Complaint record not found.', 404);
     }
 
-    // Validate state transition: Must be awaiting HOD verification
-    if (!['HOD_VERIFICATION', 'SUBMITTED'].includes(complaint.status)) {
+    // Department isolation
+    if (req.user.role === 'HOD' && complaint.department !== req.user.department) {
+      return ApiResponse.error(res, `Forbidden: You can only approve requests in your department (${req.user.department}).`, 403);
+    }
+
+    // Must be verified by Lab In-Charge first
+    const validStates = ['LAB_INCHARGE_APPROVED', 'HOD_VERIFICATION'];
+    if (!validStates.includes(complaint.status)) {
       return ApiResponse.error(
         res,
-        `Invalid transition. Cannot verify complaint in status: ${complaint.status}. Expected HOD_VERIFICATION.`,
+        `Invalid transition. Cannot approve request in status '${complaint.status}'. Expected LAB_INCHARGE_APPROVED.`,
         400
       );
     }
 
-    // Update Complaint state
-    complaint.status = 'LAB_INCHARGE_VERIFICATION';
+    const previousStatus = complaint.status;
+    const newStatus = 'HOD_APPROVED';
+
+    complaint.status = newStatus;
     complaint.hodVerification = {
       verifiedBy: req.user._id,
       verifiedAt: new Date(),
-      action: 'VERIFIED',
+      action: 'APPROVED',
       remarks: remarks.trim(),
     };
 
     await complaint.save();
 
-    // Record immutable audit history
+    // Immutable timeline record
     await StatusHistory.create({
       complaintId: complaint._id,
-      status: 'LAB_INCHARGE_VERIFICATION',
-      updatedBy: req.user._id,
+      action: 'HOD_APPROVED',
+      previousStatus,
+      newStatus,
+      user: req.user._id,
+      userName: req.user.name,
+      userRole: req.user.role,
       remarks: remarks.trim(),
     });
 
-    // Notify Student
-    await Notification.create({
-      recipient: complaint.studentId,
-      complaintId: complaint._id,
-      title: 'Complaint Verified by HOD',
-      message: `Your grievance ${complaint.complaintId} has been verified by the HOD and forwarded to Lab Incharge for equipment inspection.`,
-      type: 'STATUS_UPDATE',
-    });
-
-    // Notify Lab Incharge(s)
-    const inchargeUsers = await User.find({
-      role: 'LAB_INCHARGE',
-      department: req.user.department,
-    }).select('_id');
-
-    if (inchargeUsers.length > 0) {
-      const inchargeNotifications = inchargeUsers.map((inc) => ({
-        recipient: inc._id,
+    // Step 4 Notification: Admin receives notification
+    const admins = await User.find({ role: 'MAIN_ADMIN', isActive: true });
+    for (const admin of admins) {
+      await Notification.create({
+        recipient: admin._id,
+        sender: req.user._id,
         complaintId: complaint._id,
-        title: 'New Complaint for Lab Incharge Verification',
-        message: `Complaint ${complaint.complaintId} in ${complaint.labName} verified by HOD and awaiting your inspection.`,
-        type: 'VERIFICATION_REQUIRED',
-      }));
-      await Notification.insertMany(inchargeNotifications);
+        complaintCustomId: complaint.complaintId,
+        title: 'Repair Request Approved by HOD',
+        message: 'A laboratory repair request has been approved by the HOD and requires action.',
+        type: 'HOD_APPROVED',
+        link: `/admin-console?id=${complaint.complaintId}`,
+      });
+    }
+
+    // Notify reporter
+    if (complaint.reporter) {
+      await Notification.create({
+        recipient: complaint.reporter,
+        sender: req.user._id,
+        complaintId: complaint._id,
+        complaintCustomId: complaint.complaintId,
+        title: 'Departmental Approval Granted',
+        message: `Your request ${complaint.complaintId} was approved by HOD (${complaint.department}) and forwarded to Admin for repair dispatch.`,
+        type: 'STATUS_UPDATE',
+        link: `/student-hub?id=${complaint.complaintId}`,
+      });
     }
 
     return ApiResponse.success(
       res,
       complaint,
-      'Complaint successfully verified by HOD and routed to Lab Incharge.'
+      `Request ${complaint.complaintId} approved by HOD and forwarded to Admin.`
     );
   } catch (error) {
     next(error);
@@ -132,7 +199,7 @@ const verifyComplaint = async (req, res, next) => {
 
 /**
  * @route   PATCH /api/hod/complaints/:id/reject
- * @desc    Reject a student complaint with required remarks
+ * @desc    Step 3: HOD rejects request with mandatory reason
  * @access  Private (HOD, MAIN_ADMIN)
  */
 const rejectComplaint = async (req, res, next) => {
@@ -140,30 +207,24 @@ const rejectComplaint = async (req, res, next) => {
     const { id } = req.params;
     const { remarks } = req.body;
 
-    if (!remarks || remarks.trim().length < 5) {
-      return ApiResponse.error(
-        res,
-        'Rejection remarks are mandatory and must be at least 5 characters.',
-        400
-      );
+    if (!remarks || !remarks.trim() || remarks.trim().length < 5) {
+      return ApiResponse.error(res, 'Rejection reason is mandatory (minimum 5 characters).', 400);
     }
 
     const complaint = await findComplaint(id);
     if (!complaint) {
-      return ApiResponse.error(res, 'Complaint not found.', 404);
+      return ApiResponse.error(res, 'Complaint record not found.', 404);
     }
 
-    // Validate state transition
-    if (!['HOD_VERIFICATION', 'SUBMITTED'].includes(complaint.status)) {
-      return ApiResponse.error(
-        res,
-        `Invalid transition. Cannot reject complaint in status: ${complaint.status}. Expected HOD_VERIFICATION.`,
-        400
-      );
+    if (req.user.role === 'HOD' && complaint.department !== req.user.department) {
+      return ApiResponse.error(res, `Forbidden: You can only reject requests in your department (${req.user.department}).`, 403);
     }
 
-    // Update Complaint state to terminal REJECTED
-    complaint.status = 'REJECTED';
+    const previousStatus = complaint.status;
+    const newStatus = 'REJECTED';
+
+    complaint.status = newStatus;
+    complaint.rejectionReason = remarks.trim();
     complaint.hodVerification = {
       verifiedBy: req.user._id,
       verifiedAt: new Date(),
@@ -173,28 +234,32 @@ const rejectComplaint = async (req, res, next) => {
 
     await complaint.save();
 
-    // Record immutable audit history
     await StatusHistory.create({
       complaintId: complaint._id,
-      status: 'REJECTED',
-      updatedBy: req.user._id,
-      remarks: `Rejected by HOD: ${remarks.trim()}`,
+      action: 'HOD_REJECTED',
+      previousStatus,
+      newStatus,
+      user: req.user._id,
+      userName: req.user.name,
+      userRole: req.user.role,
+      remarks: remarks.trim(),
+      rejectionReason: remarks.trim(),
     });
 
-    // Notify Student of rejection with reason
-    await Notification.create({
-      recipient: complaint.studentId,
-      complaintId: complaint._id,
-      title: 'Complaint Rejected by HOD',
-      message: `Your grievance ${complaint.complaintId} was rejected by HOD. Remarks: ${remarks.trim()}`,
-      type: 'REJECTION',
-    });
+    if (complaint.reporter) {
+      await Notification.create({
+        recipient: complaint.reporter,
+        sender: req.user._id,
+        complaintId: complaint._id,
+        complaintCustomId: complaint.complaintId,
+        title: 'Request Rejected by HOD',
+        message: `Your request ${complaint.complaintId} was rejected by HOD: "${remarks.trim()}".`,
+        type: 'REJECTED',
+        link: `/student-hub?id=${complaint.complaintId}`,
+      });
+    }
 
-    return ApiResponse.success(
-      res,
-      complaint,
-      'Complaint has been rejected and student notified.'
-    );
+    return ApiResponse.success(res, complaint, `Request ${complaint.complaintId} rejected.`);
   } catch (error) {
     next(error);
   }
@@ -202,6 +267,7 @@ const rejectComplaint = async (req, res, next) => {
 
 module.exports = {
   getPendingComplaints,
+  getAllDepartmentComplaints,
   verifyComplaint,
   rejectComplaint,
 };

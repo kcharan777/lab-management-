@@ -54,7 +54,7 @@ export default function StudentHub() {
       const res = await complaintService.getComplaintById(id);
       if (res.success && res.data) {
         setSelectedComplaint(res.data.complaint);
-        setComplaintHistory(res.data.history || []);
+        setComplaintHistory(res.data.timeline || res.data.history || []);
       }
     } catch (err) {
       console.error('Failed to load complaint details:', err);
@@ -72,15 +72,21 @@ export default function StudentHub() {
 
   const getStatusBadge = (status) => {
     switch (status) {
+      case 'SUBMITTED_TO_LAB_INCHARGE':
       case 'SUBMITTED':
-      case 'HOD_VERIFICATION':
-        return 'bg-amber-50 text-amber-900 border-amber-300';
       case 'LAB_INCHARGE_VERIFICATION':
+        return 'bg-amber-50 text-amber-900 border-amber-300';
+      case 'LAB_INCHARGE_APPROVED':
+      case 'HOD_VERIFICATION':
         return 'bg-blue-50 text-blue-900 border-blue-300';
+      case 'HOD_APPROVED':
       case 'ASSIGNED_TO_MAIN_ADMIN':
-      case 'ACCEPTED':
+      case 'ADMIN_REVIEW':
         return 'bg-purple-50 text-purple-900 border-purple-300';
+      case 'ASSIGNED_TO_REPAIR_ASSISTANT':
       case 'IN_PROGRESS':
+      case 'ON_HOLD':
+      case 'ACCEPTED':
         return 'bg-primary/10 text-primary border-primary/30';
       case 'RESOLVED':
       case 'CLOSED':

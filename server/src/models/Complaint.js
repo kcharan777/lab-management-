@@ -1,15 +1,22 @@
 const mongoose = require('mongoose');
 
 const COMPLAINT_STATUSES = [
+  'SUBMITTED_TO_LAB_INCHARGE',
+  'LAB_INCHARGE_APPROVED',
+  'HOD_APPROVED',
+  'ADMIN_REVIEW',
+  'ASSIGNED_TO_REPAIR_ASSISTANT',
+  'IN_PROGRESS',
+  'ON_HOLD',
+  'RESOLVED',
+  'CLOSED',
+  'REJECTED',
+  // Legacy status support
   'SUBMITTED',
   'HOD_VERIFICATION',
   'LAB_INCHARGE_VERIFICATION',
   'ASSIGNED_TO_MAIN_ADMIN',
   'ACCEPTED',
-  'IN_PROGRESS',
-  'RESOLVED',
-  'CLOSED',
-  'REJECTED',
 ];
 
 const ISSUE_CATEGORIES = [
@@ -33,10 +40,39 @@ const complaintSchema = new mongoose.Schema(
       uppercase: true,
       index: true,
     },
+    title: {
+      type: String,
+      trim: true,
+      default: function () {
+        return `${this.issueCategory || 'Equipment'} issue at ${this.labName || 'Lab'} - ${this.systemNumber || 'Unit'}`;
+      },
+    },
+    reporter: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Reporter reference is required'],
+      index: true,
+    },
+    reporterRole: {
+      type: String,
+      default: 'STUDENT',
+      index: true,
+    },
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Student ID reference is required'],
+      index: true,
+    },
+    department: {
+      type: String,
+      required: [true, 'Department is required'],
+      trim: true,
+      index: true,
+    },
+    labId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Lab',
+      default: null,
       index: true,
     },
     labName: {
@@ -85,23 +121,8 @@ const complaintSchema = new mongoose.Schema(
         values: COMPLAINT_STATUSES,
         message: '{VALUE} is not a valid complaint status',
       },
-      default: 'SUBMITTED',
+      default: 'SUBMITTED_TO_LAB_INCHARGE',
       index: true,
-    },
-    hodVerification: {
-      verifiedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      },
-      verifiedAt: Date,
-      action: {
-        type: String,
-        enum: ['VERIFIED', 'REJECTED'],
-      },
-      remarks: {
-        type: String,
-        trim: true,
-      },
     },
     labInchargeVerification: {
       verifiedBy: {
@@ -111,19 +132,47 @@ const complaintSchema = new mongoose.Schema(
       verifiedAt: Date,
       action: {
         type: String,
-        enum: ['VERIFIED', 'REJECTED'],
+        enum: ['APPROVED', 'REJECTED', 'VERIFIED'],
       },
       remarks: {
         type: String,
         trim: true,
       },
     },
-    mainAdminAction: {
-      acceptedBy: {
+    hodVerification: {
+      verifiedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
       },
-      acceptedAt: Date,
+      verifiedAt: Date,
+      action: {
+        type: String,
+        enum: ['APPROVED', 'REJECTED', 'VERIFIED'],
+      },
+      remarks: {
+        type: String,
+        trim: true,
+      },
+    },
+    adminAction: {
+      reviewedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      reviewedAt: Date,
+      assignedAssistant: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      assignedAssistantName: {
+        type: String,
+        trim: true,
+      },
+      assignedAt: Date,
+      remarks: {
+        type: String,
+        trim: true,
+      },
       technicianAssigned: {
         type: String,
         trim: true,
@@ -146,6 +195,11 @@ const complaintSchema = new mongoose.Schema(
           },
         },
       ],
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: null,
     },
     resolutionRemarks: {
       type: String,
@@ -171,8 +225,11 @@ const complaintSchema = new mongoose.Schema(
   }
 );
 
-// Helpful compound indexes
+// Compound indexes for fast multi-role querying & department scoping
+complaintSchema.index({ department: 1, status: 1 });
+complaintSchema.index({ reporter: 1, status: 1 });
 complaintSchema.index({ studentId: 1, status: 1 });
+complaintSchema.index({ 'adminAction.assignedAssistant': 1, status: 1 });
 complaintSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = {

@@ -7,6 +7,9 @@ const {
 } = require('./Complaint');
 const { StatusHistory } = require('./StatusHistory');
 const { Notification } = require('./Notification');
+const { Department } = require('./Department');
+const { Lab, LAB_STATUSES } = require('./Lab');
+const { StudentRegistry } = require('./StudentRegistry');
 
 module.exports = {
   User,
@@ -17,4 +20,8 @@ module.exports = {
   PRIORITY_LEVELS,
   StatusHistory,
   Notification,
+  Department,
+  Lab,
+  LAB_STATUSES,
+  StudentRegistry,
 };

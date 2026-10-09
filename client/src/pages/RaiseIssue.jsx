@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/common/Toast';
 import { complaintService } from '../services/complaintService';
+import { adminService } from '../services/adminService';
 
 export default function RaiseIssue() {
   const { user } = useAuth();
@@ -13,8 +14,16 @@ export default function RaiseIssue() {
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // Dynamic Labs state
+  const [labs, setLabs] = useState([]);
+  const [labsLoading, setLabsLoading] = useState(true);
+  const [selectedLabObj, setSelectedLabObj] = useState(null);
+
   const [formData, setFormData] = useState({
-    labName: 'Advanced AI & Machine Learning Lab (Lab 402 - Block B)',
+    title: '',
+    labName: '',
+    labId: '',
+    department: user?.department || 'Computer Science & Engineering',
     systemNumber: '',
     issueCategory: 'HARDWARE',
     priority: 'MEDIUM',
@@ -25,13 +34,49 @@ export default function RaiseIssue() {
 
   const [imagePreview, setImagePreview] = useState(null);
 
-  const labOptions = [
-    'Advanced AI & Machine Learning Lab (Lab 402 - Block B)',
-    'VLSI Design & Embedded Systems Lab (Lab 201 - Tech Tower)',
-    'Networks & Cyber Security Lab (Lab 305 - Core Wing)',
-    'Physics & Precision Optics Lab (Lab 102 - Science Quad)',
-    'IoT & Embedded Systems Lab (IoT 304 - Innovation Hub)',
-  ];
+  // Fetch labs dynamically from the backend (No hardcoded names/locations!)
+  useEffect(() => {
+    const fetchDynamicLabs = async () => {
+      try {
+        setLabsLoading(true);
+        const res = await adminService.getLabs();
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setLabs(res.data);
+          // Set initial default lab
+          const firstLab = res.data[0];
+          setSelectedLabObj(firstLab);
+          setFormData((prev) => ({
+            ...prev,
+            labName: firstLab.name,
+            labId: firstLab._id,
+            department: firstLab.department || prev.department,
+          }));
+        } else {
+          setLabs([]);
+        }
+      } catch (err) {
+        console.warn('Failed to load dynamic labs:', err.message);
+      } finally {
+        setLabsLoading(false);
+      }
+    };
+
+    fetchDynamicLabs();
+  }, []);
+
+  const handleLabChange = (e) => {
+    const chosenLabId = e.target.value;
+    const found = labs.find((l) => l._id === chosenLabId);
+    if (found) {
+      setSelectedLabObj(found);
+      setFormData((prev) => ({
+        ...prev,
+        labId: found._id,
+        labName: found.name,
+        department: found.department,
+      }));
+    }
+  };
 
   const categories = [
     { id: 'HARDWARE', label: 'Hardware Defect', icon: 'memory' },
@@ -48,8 +93,6 @@ export default function RaiseIssue() {
     { id: 'HIGH', label: 'High', desc: 'Lab work blocked' },
     { id: 'CRITICAL', label: 'Critical', desc: 'Urgent exam / capstone deadline' },
   ];
-
-  const quickStations = ['ML-WS-02', 'ML-WS-14', 'VLSI-08', 'NET-CORE-01', 'IOT-KIT-04'];
 
   const handleImageFile = async (file) => {
     if (!file) return;
@@ -69,7 +112,7 @@ export default function RaiseIssue() {
     reader.onload = (e) => setImagePreview(e.target.result);
     reader.readAsDataURL(file);
 
-    // Upload to backend/Cloudinary
+    // Upload to backend
     try {
       setUploadingImage(true);
       const res = await complaintService.uploadEvidenceImage(file);
@@ -94,21 +137,34 @@ export default function RaiseIssue() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!formData.labName) {
+      addToast('Please select a laboratory', 'warning');
+      return;
+    }
+
     if (!formData.systemNumber.trim()) {
       addToast('Please enter the equipment / workstation ID', 'warning');
       return;
     }
 
-    if (!formData.description.trim() || formData.description.trim().length < 5) {
-      addToast('Please provide an issue description (minimum 5 characters)', 'warning');
+    if (formData.description.trim().length < 5) {
+      addToast('Please describe the problem (at least 5 characters)', 'warning');
       return;
     }
 
+    setLoading(true);
+
     try {
-      setLoading(true);
-      const res = await complaintService.createComplaint(formData);
-      if (res.success && res.data) {
-        addToast(`Grievance ${res.data.complaintId} created & routed for HOD verification!`, 'success');
+      const res = await complaintService.createComplaint({
+        ...formData,
+        title: formData.title.trim() || `${formData.issueCategory} issue on ${formData.systemNumber.trim()} (${formData.labName})`,
+      });
+
+      if (res.success) {
+        addToast(
+          `Grievance logged successfully! Assigned ID: ${res.data.complaintId}. Forwarded to Lab In-Charge for verification.`,
+          'success'
+        );
         navigate('/student-hub');
       }
     } catch (err) {
@@ -119,397 +175,417 @@ export default function RaiseIssue() {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-space-md lg:px-margin py-space-md space-y-space-lg">
-      {/* Breadcrumb & Header Bar */}
+    <div className="w-full max-w-5xl mx-auto px-space-md lg:px-margin py-space-md space-y-space-lg">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md pb-space-sm border-b border-outline-variant/30">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-label-md font-label-md text-secondary">
-            <span className="hover:text-primary cursor-pointer">Student Portal</span>
+            <span>Student Hub</span>
             <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="text-primary font-semibold">New Grievance Filing</span>
-            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="bg-surface-container-high px-2 py-0.5 rounded text-on-surface-variant font-mono">
-              FORM-REF #CMP-DEV
-            </span>
+            <span className="text-primary font-semibold">Step 1: Report Problem</span>
           </div>
           <h1 className="font-headline-xl text-headline-xl text-on-surface tracking-tight font-bold">
-            Report Laboratory Equipment Issue
+            Report Laboratory Technical Grievance
           </h1>
-          <p className="font-body-md text-body-md text-secondary max-w-3xl">
-            Upload photographic evidence and detailed system specs for fast-track HOD and Lab Incharge verification. Direct routing into campus repair ops.
+          <p className="font-body-md text-body-md text-secondary">
+            Submissions route directly to the Lab In-Charge for hardware inspection and verification.
           </p>
         </div>
 
-        {/* Live Bench Session Badge */}
-        <div className="flex items-center gap-3 bg-surface-container-lowest p-2.5 rounded-lg shadow-sm border border-outline-variant/30 self-start md:self-auto">
-          <div className="w-10 h-10 rounded bg-primary-container/10 flex items-center justify-center text-primary">
-            <span className="material-symbols-outlined text-[24px]">terminal</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-label-sm text-label-sm text-secondary uppercase font-bold">Active Student</span>
-            <span className="font-label-md text-label-md font-semibold text-on-surface">
-              {user?.name || 'Student'} ({user?.department || 'Engineering'})
-            </span>
-          </div>
+        {/* Step Indicator */}
+        <div className="flex items-center gap-2 bg-surface-container-low p-1.5 rounded-lg border border-outline-variant/40">
+          {[1, 2, 3].map((step) => (
+            <button
+              key={step}
+              type="button"
+              onClick={() => setActiveStep(step)}
+              className={`px-3 py-1 rounded text-label-md font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeStep === step
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'text-secondary hover:text-on-surface'
+              }`}
+            >
+              <span>{step}</span>
+              <span className="hidden sm:inline">
+                {step === 1 ? 'Location & Rig' : step === 2 ? 'Diagnostics' : 'Verification'}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Stepper Progress Bar matching Stitch */}
-      <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm border border-outline-variant/30">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div
-            onClick={() => setActiveStep(1)}
-            className={`flex items-center gap-3.5 p-2 rounded cursor-pointer transition-all ${
-              activeStep === 1 ? 'bg-surface-container-low border-b-2 border-primary' : 'hover:bg-surface-container-low/50'
-            }`}
-          >
-            <div className="w-8 h-8 rounded flex items-center justify-center font-label-md font-bold text-on-primary bg-primary shadow-sm">
-              <span className="material-symbols-outlined text-[18px]">domain</span>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-label-sm text-label-sm uppercase font-bold text-primary tracking-wider">
-                Step 01 • Target
-              </span>
-              <span className="font-headline-sm text-headline-sm text-on-surface font-semibold truncate">
-                System Identification
-              </span>
-            </div>
-          </div>
-
-          <div
-            onClick={() => setActiveStep(2)}
-            className={`flex items-center gap-3.5 p-2 rounded cursor-pointer transition-all ${
-              activeStep === 2 ? 'bg-surface-container-low border-b-2 border-primary' : 'hover:bg-surface-container-low/50'
-            }`}
-          >
-            <div className="w-8 h-8 rounded flex items-center justify-center font-label-md font-bold text-on-primary-container bg-primary-fixed shadow-sm">
-              <span className="material-symbols-outlined text-[18px]">photo_camera</span>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-label-sm text-label-sm uppercase font-bold text-secondary tracking-wider">
-                Step 02 • Evidence
-              </span>
-              <span className="font-headline-sm text-headline-sm text-on-surface font-semibold truncate">
-                Diagnostics & Upload
-              </span>
-            </div>
-          </div>
-
-          <div
-            onClick={() => setActiveStep(3)}
-            className={`flex items-center gap-3.5 p-2 rounded cursor-pointer transition-all ${
-              activeStep === 3 ? 'bg-surface-container-low border-b-2 border-primary' : 'hover:bg-surface-container-low/50'
-            }`}
-          >
-            <div className="w-8 h-8 rounded flex items-center justify-center font-label-md font-bold text-secondary bg-surface-container-highest shadow-sm">
-              <span className="material-symbols-outlined text-[18px]">send</span>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-label-sm text-label-sm uppercase font-bold text-secondary tracking-wider">
-                Step 03 • Escalation
-              </span>
-              <span className="font-headline-sm text-headline-sm text-on-surface font-semibold truncate">
-                Review & Dispatch
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Two-Column Workstation Studio Grid */}
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
-        {/* LEFT COLUMN: System Identification, Category, Priority (7 Cols) */}
-        <div className="lg:col-span-7 space-y-space-md">
-          {/* Panel 1: Laboratory Facility */}
-          <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm border border-outline-variant/30 space-y-space-md">
-            <div className="flex items-center justify-between pb-2 border-b border-surface-container-high">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[22px]">domain</span>
-                <h2 className="font-headline-sm text-headline-sm text-on-surface font-bold">
-                  1. Location & Terminal Target
-                </h2>
+      <form onSubmit={handleSubmit} className="space-y-space-lg">
+        {/* STEP 1: Laboratory & Rig Identification */}
+        {activeStep === 1 && (
+          <div className="space-y-space-md animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="bg-surface-container-lowest p-space-md rounded-xl border border-outline-variant/30 space-y-space-md shadow-xs">
+              <div className="flex items-center gap-2 border-b border-outline-variant/30 pb-3">
+                <span className="material-symbols-outlined text-primary text-[24px]">domain</span>
+                <div>
+                  <h3 className="font-headline-md text-on-surface font-bold">1. Laboratory Allocation & Location</h3>
+                  <p className="font-body-sm text-secondary">Dynamically allocated campus laboratory facilities</p>
+                </div>
               </div>
-              <span className="font-label-sm text-label-sm text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-mono font-bold uppercase">
-                Grid Online
-              </span>
+
+              {labsLoading ? (
+                <div className="py-6 text-center text-secondary flex items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading campus laboratories...</span>
+                </div>
+              ) : labs.length === 0 ? (
+                <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-body-sm">
+                  No laboratories currently configured. The Administrator will add laboratories in the console.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block font-label-md text-secondary uppercase font-bold tracking-wide mb-1">
+                      Select Laboratory Facility <span className="text-error">*</span>
+                    </label>
+                    <select
+                      value={formData.labId}
+                      onChange={handleLabChange}
+                      className="w-full bg-surface-container-low text-on-surface font-body-md rounded-lg p-3 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner font-medium"
+                    >
+                      {labs.map((lab) => (
+                        <option key={lab._id} value={lab._id}>
+                          [{lab.code}] {lab.name} — ({lab.department})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Selected Lab Location Card */}
+                  {selectedLabObj && (
+                    <div className="p-3.5 bg-surface-container-low rounded-lg border border-outline-variant/40 flex items-start justify-between gap-3 text-body-sm">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-on-surface">{selectedLabObj.name}</span>
+                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                            {selectedLabObj.status}
+                          </span>
+                        </div>
+                        <p className="text-secondary flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[16px] text-primary">location_on</span>
+                          <span>{selectedLabObj.location}</span>
+                        </p>
+                      </div>
+                      <div className="text-right text-secondary text-[12px] font-mono">
+                        Dept: {selectedLabObj.department}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Equipment / Workstation ID */}
+                  <div>
+                    <label className="block font-label-md text-secondary uppercase font-bold tracking-wide mb-1" htmlFor="systemNumber">
+                      Workstation / Equipment / Bench ID <span className="text-error">*</span>
+                    </label>
+                    <input
+                      id="systemNumber"
+                      type="text"
+                      required
+                      placeholder="e.g. WS-04, RIG-12, BENCH-02, OSC-01"
+                      value={formData.systemNumber}
+                      onChange={(e) => setFormData({ ...formData, systemNumber: e.target.value.toUpperCase() })}
+                      className="w-full bg-surface-container-low text-on-surface font-mono font-bold text-body-md rounded-lg p-3 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner tracking-wider"
+                    />
+                    <p className="mt-1 text-[11px] text-secondary">
+                      Enter the labeled sticker number on the machine, monitor, or oscilloscope
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Lab Dropdown Selection */}
-            <div className="space-y-1.5">
-              <label className="font-label-md text-label-md text-secondary uppercase font-bold tracking-wide" htmlFor="lab-selection">
-                Allocated Lab Facility
-              </label>
-              <div className="relative">
-                <select
-                  id="lab-selection"
-                  value={formData.labName}
-                  onChange={(e) => setFormData({ ...formData, labName: e.target.value })}
-                  className="w-full bg-surface-container-low text-on-surface font-body-md rounded p-3 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-primary shadow-inner font-medium border border-outline-variant/50"
-                >
-                  {labOptions.map((lab) => (
-                    <option key={lab} value={lab}>
-                      {lab}
-                    </option>
-                  ))}
-                </select>
-                <span className="material-symbols-outlined absolute right-3 top-3.5 text-secondary pointer-events-none text-[20px]">
-                  expand_more
-                </span>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!formData.systemNumber.trim()) {
+                    addToast('Please enter the workstation or equipment ID', 'warning');
+                    return;
+                  }
+                  setActiveStep(2);
+                }}
+                className="btn-tactile-primary px-6 py-2.5 rounded-lg font-semibold flex items-center gap-2 cursor-pointer"
+              >
+                <span>Proceed to Diagnostics</span>
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: Issue Diagnostics & Details */}
+        {activeStep === 2 && (
+          <div className="space-y-space-md animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="bg-surface-container-lowest p-space-md rounded-xl border border-outline-variant/30 space-y-space-md shadow-xs">
+              <div className="flex items-center gap-2 border-b border-outline-variant/30 pb-3">
+                <span className="material-symbols-outlined text-primary text-[24px]">construction</span>
+                <div>
+                  <h3 className="font-headline-md text-on-surface font-bold">2. Technical Diagnostics & Severity</h3>
+                  <p className="font-body-sm text-secondary">Categorize the failure mode for appropriate routing</p>
+                </div>
               </div>
-            </div>
 
-            {/* Workstation Node ID */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="font-label-md text-label-md text-secondary uppercase font-bold tracking-wide" htmlFor="system-id">
-                  Equipment ID / Workstation Node
+              {/* Category Selection */}
+              <div>
+                <label className="block font-label-md text-secondary uppercase font-bold tracking-wide mb-2">
+                  Failure Category <span className="text-error">*</span>
                 </label>
-                <span className="font-label-sm text-label-sm text-tertiary font-mono bg-tertiary-fixed/30 px-2 py-0.5 rounded">
-                  Required
-                </span>
-              </div>
-              <input
-                id="system-id"
-                type="text"
-                required
-                value={formData.systemNumber}
-                onChange={(e) => setFormData({ ...formData, systemNumber: e.target.value })}
-                placeholder="e.g. ML-WS-14 or FPGA-KIT-02"
-                className="w-full bg-surface-container-low text-on-surface font-body-md font-mono rounded p-3 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner"
-              />
-
-              {/* Quick Matrix Selector Pills */}
-              <div className="flex items-center gap-2 pt-1 flex-wrap">
-                <span className="font-label-sm text-[11px] text-secondary">Quick Select:</span>
-                {quickStations.map((station) => (
-                  <button
-                    key={station}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, systemNumber: station })}
-                    className="font-label-sm text-[11px] font-mono px-2 py-0.5 rounded bg-surface-container hover:bg-primary hover:text-white transition-colors cursor-pointer border border-outline-variant/30"
-                  >
-                    {station}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Panel 2: Issue Classification & Priority */}
-          <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm border border-outline-variant/30 space-y-space-md">
-            <div className="flex items-center gap-2 pb-2 border-b border-surface-container-high">
-              <span className="material-symbols-outlined text-primary text-[22px]">category</span>
-              <h2 className="font-headline-sm text-headline-sm text-on-surface font-bold">
-                2. Classification & Urgency
-              </h2>
-            </div>
-
-            {/* Issue Category Grid */}
-            <div className="space-y-2">
-              <label className="font-label-md text-label-md text-secondary uppercase font-bold tracking-wide">
-                Issue Category
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {categories.map((cat) => {
-                  const isSelected = formData.issueCategory === cat.id;
-                  return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {categories.map((cat) => (
                     <button
                       key={cat.id}
                       type="button"
                       onClick={() => setFormData({ ...formData, issueCategory: cat.id })}
-                      className={`p-3 rounded-lg border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary'
-                          : 'border-outline-variant/40 bg-surface-container-low hover:bg-surface-container'
+                      className={`p-3 rounded-lg border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                        formData.issueCategory === cat.id
+                          ? 'bg-primary/10 border-primary text-primary font-bold shadow-xs'
+                          : 'bg-surface-container-low border-outline-variant/40 text-on-surface hover:bg-surface-container'
                       }`}
                     >
-                      <span className={`material-symbols-outlined text-[20px] ${isSelected ? 'text-primary' : 'text-secondary'}`}>
-                        {cat.icon}
-                      </span>
-                      <span className={`font-body-sm text-[12px] font-bold ${isSelected ? 'text-primary' : 'text-on-surface'}`}>
-                        {cat.label}
-                      </span>
+                      <span className="material-symbols-outlined text-[20px]">{cat.icon}</span>
+                      <span className="text-body-sm">{cat.label}</span>
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Priority Selector */}
-            <div className="space-y-2 pt-2">
-              <label className="font-label-md text-label-md text-secondary uppercase font-bold tracking-wide">
-                SLA Escalation Priority
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {priorities.map((p) => {
-                  const isSelected = formData.priority === p.id;
-                  return (
+              {/* Priority */}
+              <div>
+                <label className="block font-label-md text-secondary uppercase font-bold tracking-wide mb-2">
+                  Priority / Impact Level
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {priorities.map((pri) => (
                     <button
-                      key={p.id}
+                      key={pri.id}
                       type="button"
-                      onClick={() => setFormData({ ...formData, priority: p.id })}
-                      className={`p-2.5 rounded-lg border text-center transition-all cursor-pointer ${
-                        isSelected
-                          ? p.id === 'CRITICAL'
-                            ? 'bg-error text-white border-error shadow-sm font-bold'
-                            : 'bg-primary text-white border-primary shadow-sm font-bold'
-                          : 'bg-surface-container-low text-on-surface border-outline-variant/40 hover:bg-surface-container'
+                      onClick={() => setFormData({ ...formData, priority: pri.id })}
+                      className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                        formData.priority === pri.id
+                          ? pri.id === 'CRITICAL'
+                            ? 'bg-error/10 border-error text-error font-bold'
+                            : 'bg-primary/10 border-primary text-primary font-bold'
+                          : 'bg-surface-container-low border-outline-variant/40 text-on-surface hover:bg-surface-container'
                       }`}
                     >
-                      <span className="font-label-sm text-label-sm uppercase font-bold block">{p.label}</span>
-                      <span className="font-body-sm text-[10px] opacity-80 block truncate">{p.desc}</span>
+                      <div className="text-body-sm font-semibold">{pri.label}</div>
+                      <div className="text-[11px] text-secondary mt-0.5">{pri.desc}</div>
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
+
+              {/* Detailed Description */}
+              <div>
+                <label className="block font-label-md text-secondary uppercase font-bold tracking-wide mb-1" htmlFor="description">
+                  Symptom Description & Error Messages <span className="text-error">*</span>
+                </label>
+                <textarea
+                  id="description"
+                  required
+                  rows={4}
+                  placeholder="Provide precise details: Did the system BSOD? Is smoke or burning smell present? Does the GPU fan spin? Specific software error codes..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full bg-surface-container-low text-on-surface font-body-md rounded-lg p-3 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner"
+                />
+              </div>
+
+              {/* Photographic Evidence Attachment */}
+              <div>
+                <label className="block font-label-md text-secondary uppercase font-bold tracking-wide mb-2">
+                  Photographic Evidence / Error Screen (Optional)
+                </label>
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleDrop}
+                  className="border-2 border-dashed border-outline-variant rounded-xl p-4 text-center bg-surface-container-low hover:bg-surface-container transition-colors"
+                >
+                  {imagePreview ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="max-h-48 rounded-lg object-contain border border-outline-variant shadow-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImagePreview(null);
+                          setFormData({ ...formData, imageUrl: '' });
+                        }}
+                        className="text-error text-body-sm font-semibold hover:underline"
+                      >
+                        Remove Photograph
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <span className="material-symbols-outlined text-[36px] text-secondary">
+                        add_photo_alternate
+                      </span>
+                      <p className="text-body-sm text-secondary">
+                        Drag & drop a photo of the defect or error screen, or{' '}
+                        <label className="text-primary font-bold hover:underline cursor-pointer">
+                          browse file
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleImageFile(e.target.files[0]);
+                              }
+                            }}
+                          />
+                        </label>
+                      </p>
+                      <p className="text-[11px] text-secondary">Supports PNG, JPG, WEBP up to 5MB</p>
+                    </div>
+                  )}
+                  {uploadingImage && (
+                    <div className="mt-2 text-primary text-body-sm font-semibold flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      <span>Uploading to campus secure repository...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between">
+              <button
+                type="button"
+                onClick={() => setActiveStep(1)}
+                className="btn-tactile-secondary px-5 py-2.5 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                <span>Back</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (formData.description.trim().length < 5) {
+                    addToast('Please enter an issue description (minimum 5 characters)', 'warning');
+                    return;
+                  }
+                  setActiveStep(3);
+                }}
+                className="btn-tactile-primary px-6 py-2.5 rounded-lg font-semibold flex items-center gap-2 cursor-pointer"
+              >
+                <span>Review & Submit</span>
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </button>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* RIGHT COLUMN: Diagnostics, Photographic Evidence & Submit (5 Cols) */}
-        <div className="lg:col-span-5 space-y-space-md">
-          {/* Panel 3: Technical Description */}
-          <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm border border-outline-variant/30 space-y-space-md">
-            <div className="flex items-center justify-between pb-2 border-b border-surface-container-high">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[22px]">description</span>
-                <h2 className="font-headline-sm text-headline-sm text-on-surface font-bold">
-                  3. Diagnostic Description
-                </h2>
+        {/* STEP 3: Verification & Submission */}
+        {activeStep === 3 && (
+          <div className="space-y-space-md animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="bg-surface-container-lowest p-space-md rounded-xl border border-outline-variant/30 space-y-space-md shadow-xs">
+              <div className="flex items-center gap-2 border-b border-outline-variant/30 pb-3">
+                <span className="material-symbols-outlined text-primary text-[24px]">verified</span>
+                <div>
+                  <h3 className="font-headline-md text-on-surface font-bold">3. Review Institutional Submission</h3>
+                  <p className="font-body-sm text-secondary">Verify details before dispatching to Lab In-Charge</p>
+                </div>
               </div>
-              <span className="font-label-sm text-label-sm text-secondary font-mono">
-                {formData.description.length}/2000 chars
-              </span>
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="font-label-md text-label-md text-secondary uppercase font-bold tracking-wide" htmlFor="desc-input">
-                Observed Fault & Error Codes
-              </label>
-              <textarea
-                id="desc-input"
-                rows="4"
-                required
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Describe behavior, screen artifacts, thermal shutdown, beep codes, or software error messages..."
-                className="w-full bg-surface-container-low text-on-surface font-body-md rounded p-3 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner"
-              />
-            </div>
+              {/* Review Summary Card */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-surface-container-low p-4 rounded-xl border border-outline-variant/40 text-body-sm">
+                <div>
+                  <span className="text-secondary font-label-sm uppercase font-bold block">Facility</span>
+                  <p className="font-bold text-on-surface mt-0.5">{formData.labName}</p>
+                  <p className="text-secondary text-[12px]">{selectedLabObj?.location}</p>
+                </div>
 
-            <div className="space-y-1.5">
-              <label className="font-label-md text-label-md text-secondary uppercase font-bold tracking-wide" htmlFor="remarks-input">
-                Additional Student Notes (Optional)
-              </label>
-              <input
-                id="remarks-input"
-                type="text"
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                placeholder="e.g. Happened during Capstone slot; system reboot loop."
-                className="w-full bg-surface-container-low text-on-surface font-body-md rounded p-2.5 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner"
-              />
-            </div>
-          </div>
+                <div>
+                  <span className="text-secondary font-label-sm uppercase font-bold block">Equipment / Bench ID</span>
+                  <p className="font-bold text-primary font-mono text-body-md mt-0.5">{formData.systemNumber}</p>
+                </div>
 
-          {/* Panel 4: Photographic Evidence Dropzone */}
-          <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm border border-outline-variant/30 space-y-space-md">
-            <div className="flex items-center justify-between pb-2 border-b border-surface-container-high">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[22px]">photo_camera</span>
-                <h2 className="font-headline-sm text-headline-sm text-on-surface font-bold">
-                  4. Photographic Evidence
-                </h2>
-              </div>
-              <span className="font-label-sm text-label-sm text-secondary font-mono">Cloudinary Sec</span>
-            </div>
-
-            {/* Dropzone Box */}
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              className={`p-6 border-2 border-dashed rounded-xl text-center transition-all ${
-                imagePreview
-                  ? 'border-emerald-500 bg-emerald-50/20'
-                  : 'border-outline-variant/60 hover:border-primary bg-surface-container-low/50'
-              }`}
-            >
-              {imagePreview ? (
-                <div className="space-y-3">
-                  <div className="relative inline-block">
-                    <img
-                      src={imagePreview}
-                      alt="Uploaded Preview"
-                      className="max-h-40 rounded-lg shadow-md border border-slate-300 mx-auto object-contain"
-                    />
-                    {uploadingImage && (
-                      <div className="absolute inset-0 bg-slate-900/60 rounded-lg flex items-center justify-center text-white text-xs font-bold gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Streaming to Cloud...
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setImagePreview(null);
-                        setFormData((prev) => ({ ...prev, imageUrl: '' }));
-                      }}
-                      className="btn-tactile-danger px-3 py-1 rounded text-body-sm font-semibold flex items-center gap-1 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">delete</span>
-                      Remove Photo
-                    </button>
+                <div>
+                  <span className="text-secondary font-label-sm uppercase font-bold block">Category & Priority</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="font-semibold text-on-surface">{formData.issueCategory}</span>
+                    <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                      formData.priority === 'CRITICAL' ? 'bg-error text-on-error' : 'bg-primary text-on-primary'
+                    }`}>
+                      {formData.priority}
+                    </span>
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <span className="material-symbols-outlined text-secondary text-[36px]">add_photo_alternate</span>
-                  <div className="font-body-sm text-body-sm text-on-surface font-medium">
-                    Drag and drop defect photo here, or{' '}
-                    <label className="text-primary font-bold hover:underline cursor-pointer">
-                      browse files
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        onChange={(e) => handleImageFile(e.target.files?.[0])}
-                      />
-                    </label>
+
+                <div>
+                  <span className="text-secondary font-label-sm uppercase font-bold block">Reporter Identity</span>
+                  <p className="font-semibold text-on-surface mt-0.5">{user?.name} ({user?.role})</p>
+                  <p className="text-secondary text-[12px] font-mono">Roll: {user?.rollNumber || 'Faculty'}</p>
+                </div>
+
+                <div className="sm:col-span-2 pt-2 border-t border-outline-variant/30">
+                  <span className="text-secondary font-label-sm uppercase font-bold block">Problem Description</span>
+                  <p className="text-on-surface mt-1 whitespace-pre-line leading-relaxed">{formData.description}</p>
+                </div>
+
+                {formData.imageUrl && (
+                  <div className="sm:col-span-2 pt-2 border-t border-outline-variant/30">
+                    <span className="text-secondary font-label-sm uppercase font-bold block mb-2">Photographic Attachment</span>
+                    <img src={formData.imageUrl} alt="Attached Evidence" className="max-h-36 rounded-lg object-contain border" />
                   </div>
-                  <p className="font-label-sm text-[11px] text-secondary">
-                    Supports JPG, PNG, WEBP up to 5MB
+                )}
+              </div>
+
+              {/* Workflow Routing Banner */}
+              <div className="p-3.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-body-sm flex items-start gap-2.5">
+                <span className="material-symbols-outlined text-[20px] text-blue-700 shrink-0">route</span>
+                <div>
+                  <p className="font-bold">Automated 4-Step Technical Workflow:</p>
+                  <p className="text-[12px] mt-0.5 leading-relaxed">
+                    1. Problem Logged (<code className="bg-blue-100 px-1 rounded">SUBMITTED_TO_LAB_INCHARGE</code>) &rarr;
+                    2. Lab In-Charge Hardware Verification &rarr;
+                    3. HOD Department Approval &rarr;
+                    4. Admin Work Order & Repair Dispatch.
                   </p>
                 </div>
-              )}
+              </div>
+            </div>
+
+            <div className="flex justify-between">
+              <button
+                type="button"
+                onClick={() => setActiveStep(2)}
+                className="btn-tactile-secondary px-5 py-2.5 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                <span>Back</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-tactile-primary px-8 py-3 rounded-lg font-bold text-body-md flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Dispatching Grievance...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[20px]">send</span>
+                    <span>Submit Grievance to Lab In-Charge</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
-
-          {/* Submit Action Card */}
-          <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm border border-outline-variant/30 space-y-3">
-            <button
-              type="submit"
-              disabled={loading || uploadingImage}
-              className="w-full btn-tactile-primary py-3.5 rounded-lg font-bold text-body-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Escalating to HOD Queue...</span>
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-[20px]">send</span>
-                  <span>Submit Grievance to HOD Queue</span>
-                </>
-              )}
-            </button>
-            <p className="font-label-sm text-[11px] text-secondary text-center">
-              Target SLA: 4.2 hours average campus turnaround. Live progress tracked on Student Hub.
-            </p>
-          </div>
-        </div>
+        )}
       </form>
     </div>
   );

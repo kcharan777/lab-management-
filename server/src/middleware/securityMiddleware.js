@@ -62,13 +62,30 @@ const sanitizeInput = (req, res, next) => {
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'test' ? 1000 : 50, // Permissive during automated testing
+  max: process.env.NODE_ENV === 'test' ? 1000 : 50,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     return ApiResponse.error(
       res,
       'Too many authentication attempts from this IP. Please try again after 15 minutes.',
+      429
+    );
+  },
+});
+
+/**
+ * Rate limiter specifically for password reset requests
+ */
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'test' ? 1000 : 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    return ApiResponse.error(
+      res,
+      'Too many password reset requests from this IP. Please try again after 15 minutes.',
       429
     );
   },
@@ -95,14 +112,15 @@ const apiLimiter = rateLimit({
  * Configured Helmet security headers middleware
  */
 const helmetConfig = helmet({
-  contentSecurityPolicy: false, // Disabled for flexible multi-host API & static asset integration
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allows image loading from Cloudinary and local static uploads
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 });
 
 module.exports = {
   sanitizeInput,
   authLimiter,
+  passwordResetLimiter,
   apiLimiter,
   helmetConfig,
 };

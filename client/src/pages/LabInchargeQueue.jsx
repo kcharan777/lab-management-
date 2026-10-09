@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/common/Toast';
 import { labInchargeService } from '../services/labInchargeService';
@@ -8,7 +9,16 @@ export default function LabInchargeQueue() {
   const { user } = useAuth();
   const { addToast } = useToast();
 
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'all'
   const [complaints, setComplaints] = useState([]);
+  const [stats, setStats] = useState({
+    pendingReview: 0,
+    approvedToHod: 0,
+    hodApproved: 0,
+    inRepair: 0,
+    resolved: 0,
+    rejected: 0,
+  });
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -19,29 +29,35 @@ export default function LabInchargeQueue() {
   const [remarks, setRemarks] = useState('');
   const [showEvidence, setShowEvidence] = useState(false);
 
-  const fetchPendingQueue = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await labInchargeService.getPendingComplaints();
-      if (res.success && res.data) {
-        const list = res.data.complaints || [];
-        setComplaints(list);
-        if (list.length > 0) {
-          setSelectedComplaint(list[0]);
-        } else {
-          setSelectedComplaint(null);
+      if (activeTab === 'pending') {
+        const res = await labInchargeService.getPendingComplaints();
+        if (res.success && res.data) {
+          const list = res.data.complaints || [];
+          setComplaints(list);
+          setSelectedComplaint(list.length > 0 ? list[0] : null);
+        }
+      } else {
+        const res = await labInchargeService.getAllComplaints();
+        if (res.success && res.data) {
+          const list = res.data.complaints || [];
+          setComplaints(list);
+          if (res.data.stats) setStats(res.data.stats);
+          setSelectedComplaint(list.length > 0 ? list[0] : null);
         }
       }
     } catch (err) {
-      addToast(err.message || 'Failed to fetch Lab Incharge queue', 'error');
+      addToast(err.message || 'Failed to fetch Lab In-Charge queue', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPendingQueue();
-  }, []);
+    fetchData();
+  }, [activeTab]);
 
   const handleVerify = async () => {
     if (!selectedComplaint) return;
@@ -49,13 +65,13 @@ export default function LabInchargeQueue() {
       setActionLoading(true);
       const res = await labInchargeService.verifyComplaint(
         selectedComplaint.complaintId,
-        remarks || 'Hardware fault confirmed upon diagnostic inspection. Escalated to Main Admin for work order generation.'
+        remarks || 'Hardware diagnostics completed by Lab In-Charge. Defect verified and forwarded to HOD for departmental sign-off.'
       );
       if (res.success) {
-        addToast(`Grievance ${selectedComplaint.complaintId} verified and assigned to Main Admin!`, 'success');
+        addToast(`Grievance ${selectedComplaint.complaintId} verified and escalated to HOD!`, 'success');
         setShowVerifyModal(false);
         setRemarks('');
-        fetchPendingQueue();
+        fetchData();
       }
     } catch (err) {
       addToast(err.message || 'Verification failed', 'error');
@@ -74,10 +90,10 @@ export default function LabInchargeQueue() {
       setActionLoading(true);
       const res = await labInchargeService.rejectComplaint(selectedComplaint.complaintId, remarks);
       if (res.success) {
-        addToast(`Grievance ${selectedComplaint.complaintId} rejected and student notified.`, 'info');
+        addToast(`Grievance ${selectedComplaint.complaintId} rejected and reporter notified.`, 'info');
         setShowRejectModal(false);
         setRemarks('');
-        fetchPendingQueue();
+        fetchData();
       }
     } catch (err) {
       addToast(err.message || 'Rejection failed', 'error');
@@ -94,273 +110,275 @@ export default function LabInchargeQueue() {
           <div className="flex items-center gap-2 text-label-md font-label-md text-secondary">
             <span>Faculty Administration</span>
             <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="text-primary font-semibold">Equipment Technical Review</span>
+            <span className="text-primary font-semibold">Step 2: Technical Review</span>
           </div>
           <h1 className="font-headline-xl text-headline-xl text-on-surface tracking-tight font-bold">
-            Lab Incharge Verification
+            Lab In-Charge Verification Console
           </h1>
-          <p className="font-body-md text-body-md text-secondary max-w-3xl">
-            Inspect hardware diagnostics on HOD-verified issues. Assign confirmed equipment defects directly to the Campus Main Admin for work order dispatch.
+          <p className="font-body-md text-body-md text-secondary">
+            Department Scope: <strong className="text-on-surface">{user?.department || 'Allocated Department'}</strong>
           </p>
         </div>
 
-        <div className="flex items-center gap-3 bg-surface-container-lowest p-2.5 rounded-lg shadow-sm border border-outline-variant/30">
-          <div className="w-10 h-10 rounded bg-emerald-50 flex items-center justify-center text-emerald-700 font-bold">
-            {complaints.length}
-          </div>
-          <div className="flex flex-col">
-            <span className="font-label-sm text-label-sm text-secondary uppercase font-bold">Verified Queue</span>
-            <span className="font-label-md text-label-md font-semibold text-on-surface">
-              {user?.name || 'Lab Incharge'}
-            </span>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/raise-issue"
+            className="btn-tactile-primary px-4 py-2 rounded-lg font-semibold flex items-center gap-1.5 text-body-sm shadow-xs"
+          >
+            <span className="material-symbols-outlined text-[18px]">add_circle</span>
+            <span>Report Lab Issue</span>
+          </Link>
+
+          {/* Tab Selector */}
+          <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-lg border border-outline-variant/40">
+            <button
+              onClick={() => setActiveTab('pending')}
+              className={`px-3 py-1 rounded text-label-md font-semibold transition-all cursor-pointer ${
+                activeTab === 'pending'
+                  ? 'bg-primary text-on-primary shadow-xs'
+                  : 'text-secondary hover:text-on-surface'
+              }`}
+            >
+              Pending Verification
+            </button>
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-3 py-1 rounded text-label-md font-semibold transition-all cursor-pointer ${
+                activeTab === 'all'
+                  ? 'bg-primary text-on-primary shadow-xs'
+                  : 'text-secondary hover:text-on-surface'
+              }`}
+            >
+              All Department Requests
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Dual Panel Verification Workbench */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
-        {/* LEFT COLUMN: Queue Card List (5 Cols) */}
-        <div className="lg:col-span-5 space-y-3">
-          <div className="flex items-center justify-between pb-1">
-            <span className="font-label-md text-label-md text-secondary uppercase font-bold tracking-wider">
-              Awaiting Incharge Review ({complaints.length})
-            </span>
-            <button
-              onClick={fetchPendingQueue}
-              className="text-body-sm text-primary hover:underline font-semibold flex items-center gap-1 text-[12px] cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px]">refresh</span> Refresh
-            </button>
+      {/* KPI Stats (Shown on All Requests Tab) */}
+      {activeTab === 'all' && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/30">
+            <span className="text-amber-800 font-label-sm uppercase font-bold text-[11px]">Awaiting Lab Review</span>
+            <div className="font-headline-md font-bold text-amber-700 mt-1">{stats.pendingReview}</div>
           </div>
+          <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/30">
+            <span className="text-blue-800 font-label-sm uppercase font-bold text-[11px]">Awaiting HOD Sign-off</span>
+            <div className="font-headline-md font-bold text-blue-700 mt-1">{stats.approvedToHod}</div>
+          </div>
+          <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/30">
+            <span className="text-purple-800 font-label-sm uppercase font-bold text-[11px]">Approved to Admin</span>
+            <div className="font-headline-md font-bold text-purple-700 mt-1">{stats.hodApproved}</div>
+          </div>
+          <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/30">
+            <span className="text-orange-800 font-label-sm uppercase font-bold text-[11px]">Active Repairs</span>
+            <div className="font-headline-md font-bold text-orange-700 mt-1">{stats.inRepair}</div>
+          </div>
+          <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/30">
+            <span className="text-emerald-800 font-label-sm uppercase font-bold text-[11px]">Resolved</span>
+            <div className="font-headline-md font-bold text-emerald-700 mt-1">{stats.resolved}</div>
+          </div>
+          <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/30">
+            <span className="text-red-800 font-label-sm uppercase font-bold text-[11px]">Rejected</span>
+            <div className="font-headline-md font-bold text-red-700 mt-1">{stats.rejected}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Split View */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md">
+        {/* Left List (5 cols) */}
+        <div className="lg:col-span-5 space-y-3">
+          <h2 className="font-headline-sm text-on-surface font-bold flex items-center justify-between">
+            <span>{activeTab === 'pending' ? 'Verification Queue' : 'Department Requests'}</span>
+            <span className="text-body-sm text-secondary font-mono">{complaints.length} requests</span>
+          </h2>
 
           {loading ? (
-            <div className="p-8 text-center text-secondary bg-surface-container-lowest rounded-xl border border-outline-variant/30">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              Loading verification queue...
+            <div className="py-12 text-center text-secondary flex items-center justify-center gap-2">
+              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <span>Loading queue...</span>
             </div>
           ) : complaints.length === 0 ? (
-            <div className="p-8 text-center bg-surface-container-lowest rounded-xl border border-outline-variant/30 space-y-2">
-              <span className="material-symbols-outlined text-emerald-600 text-[36px]">verified</span>
-              <h4 className="font-bold text-on-surface">No Incharge Reviews Pending</h4>
-              <p className="text-secondary text-body-sm text-[12px]">
-                All HOD-verified issues have been escalated to Main Admin or resolved.
-              </p>
+            <div className="p-8 text-center bg-surface-container-lowest rounded-xl border border-outline-variant/30 text-secondary">
+              <span className="material-symbols-outlined text-[36px] text-secondary mb-2 block">verified</span>
+              <p className="font-semibold text-on-surface">No grievances pending verification</p>
+              <p className="text-body-sm mt-1">All reported issues in your department have been reviewed!</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {complaints.map((item) => {
-                const isSelected = selectedComplaint?._id === item._id;
-                return (
-                  <div
-                    key={item._id}
-                    onClick={() => setSelectedComplaint(item)}
-                    className={`relative bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all cursor-pointer border ${
-                      isSelected
-                        ? 'border-l-4 border-l-primary border-outline-variant shadow-md bg-primary/5'
-                        : 'border-outline-variant/40 hover:bg-surface-container-low'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-space-xs mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-label-md text-label-md font-bold text-primary font-mono">
-                          {item.complaintId}
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-900 border border-blue-300">
-                          {item.priority}
-                        </span>
-                      </div>
-                      <span className="font-label-sm text-label-sm text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-semibold text-[10px]">
-                        HOD Approved
-                      </span>
-                    </div>
-
-                    <h3 className="font-headline-sm text-body-md font-semibold text-on-surface leading-snug line-clamp-1">
-                      {item.systemNumber} — {item.description}
-                    </h3>
-
-                    <div className="mt-2 pt-2 border-t border-outline-variant/30 flex items-center justify-between text-secondary text-[12px]">
-                      <span className="font-medium text-on-surface truncate max-w-[180px]">
-                        {item.studentId?.name || 'Student'}
-                      </span>
-                      <span className="font-mono text-primary font-semibold">
-                        {item.labName.slice(0, 24)}...
-                      </span>
-                    </div>
+            <div className="space-y-2.5">
+              {complaints.map((item) => (
+                <div
+                  key={item._id}
+                  onClick={() => setSelectedComplaint(item)}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    selectedComplaint?._id === item._id
+                      ? 'bg-surface-container-lowest border-primary shadow-sm ring-1 ring-primary/30'
+                      : 'bg-surface-container-lowest border-outline-variant/30 hover:bg-surface-container-low'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <span className="font-mono font-bold text-primary text-body-sm">{item.complaintId}</span>
+                    <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                      item.status === 'LAB_INCHARGE_APPROVED' || item.status === 'HOD_APPROVED' || item.status === 'RESOLVED' || item.status === 'CLOSED'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : item.status === 'REJECTED'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {item.status.replace(/_/g, ' ')}
+                    </span>
                   </div>
-                );
-              })}
+
+                  <h4 className="font-semibold text-on-surface text-body-md line-clamp-1">
+                    {item.title || `${item.issueCategory} at ${item.labName}`}
+                  </h4>
+
+                  <div className="flex items-center gap-3 text-secondary text-[12px] mt-2">
+                    <span className="font-mono font-semibold text-primary">{item.systemNumber}</span>
+                    <span>&bull;</span>
+                    <span className="line-clamp-1">{item.labName}</span>
+                    <span>&bull;</span>
+                    <span className="text-[11px] font-mono">{item.reporter?.rollNumber || item.reporter?.name}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* RIGHT COLUMN: Full Inspection & Action Viewport (7 Cols) */}
+        {/* Right Details (7 cols) */}
         <div className="lg:col-span-7">
           {selectedComplaint ? (
-            <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm border border-outline-variant/30 space-y-space-md">
-              {/* Header */}
-              <div className="flex items-start justify-between gap-4 pb-3 border-b border-outline-variant/30">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-label-lg text-label-lg font-mono font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded">
-                      {selectedComplaint.complaintId}
-                    </span>
-                    <span className="font-label-sm text-label-sm px-2 py-0.5 rounded uppercase font-bold bg-blue-50 text-blue-900 border border-blue-300">
-                      HOD Verified • Incharge Action
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-space-md space-y-space-md shadow-xs sticky top-20">
+              <div className="flex items-start justify-between border-b border-outline-variant/30 pb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-mono font-bold text-primary text-headline-sm">{selectedComplaint.complaintId}</span>
+                    <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-primary/10 text-primary uppercase">
+                      {selectedComplaint.priority} Priority
                     </span>
                   </div>
-                  <h2 className="font-headline-md text-headline-sm font-bold text-on-surface pt-1">
-                    {selectedComplaint.systemNumber} — {selectedComplaint.issueCategory}
-                  </h2>
-                  <p className="text-secondary text-body-sm">
-                    Filed on {new Date(selectedComplaint.createdAt).toLocaleString()}
-                  </p>
+                  <h3 className="font-headline-md font-bold text-on-surface">{selectedComplaint.title}</h3>
                 </div>
 
-                {selectedComplaint.imageUrl && (
-                  <button
-                    onClick={() => setShowEvidence(true)}
-                    className="btn-tactile-secondary px-3 py-1.5 rounded text-body-sm font-semibold flex items-center gap-1.5"
-                  >
-                    <span className="material-symbols-outlined text-[18px] text-primary">photo_camera</span>
-                    Photo Proof
-                  </button>
-                )}
+                <span className={`px-3 py-1 rounded-full text-label-md font-bold ${
+                  selectedComplaint.status === 'LAB_INCHARGE_APPROVED' || selectedComplaint.status === 'HOD_APPROVED' || selectedComplaint.status === 'RESOLVED'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : selectedComplaint.status === 'REJECTED'
+                    ? 'bg-red-100 text-red-800'
+                    : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {selectedComplaint.status.replace(/_/g, ' ')}
+                </span>
               </div>
 
-              {/* HOD Verification Audit Banner */}
-              {selectedComplaint.hodVerification && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-950 text-body-sm space-y-1">
-                  <div className="flex items-center justify-between font-bold text-[12px] text-emerald-800">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                      HOD Verification Audit
-                    </span>
-                    <span className="font-mono">
-                      {new Date(selectedComplaint.hodVerification.verifiedAt).toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-[12px] italic">
-                    "{selectedComplaint.hodVerification.remarks}"
-                  </p>
-                  <p className="text-[11px] text-emerald-700">
-                    Verified By: {selectedComplaint.hodVerification.verifiedBy?.name || 'Department HOD'}
-                  </p>
+              {/* Facility & Reporter Grid */}
+              <div className="grid grid-cols-2 gap-3 p-3.5 bg-surface-container-low rounded-lg border border-outline-variant/40 text-body-sm">
+                <div>
+                  <span className="text-secondary font-label-sm uppercase font-bold block">Laboratory Facility</span>
+                  <p className="font-bold text-on-surface mt-0.5">{selectedComplaint.labName}</p>
+                  <p className="text-secondary text-[12px]">{selectedComplaint.labId?.location}</p>
+                </div>
+                <div>
+                  <span className="text-secondary font-label-sm uppercase font-bold block">Rig / Workstation</span>
+                  <p className="font-mono font-bold text-primary text-body-md mt-0.5">{selectedComplaint.systemNumber}</p>
+                  <p className="text-secondary text-[12px]">Category: {selectedComplaint.issueCategory}</p>
+                </div>
+                <div>
+                  <span className="text-secondary font-label-sm uppercase font-bold block">Reported By</span>
+                  <p className="font-semibold text-on-surface mt-0.5">{selectedComplaint.reporter?.name || 'Student'}</p>
+                  <p className="text-secondary text-[12px] font-mono">Roll: {selectedComplaint.reporter?.rollNumber || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-secondary font-label-sm uppercase font-bold block">Department Scope</span>
+                  <p className="font-semibold text-on-surface mt-0.5">{selectedComplaint.department}</p>
+                  <p className="text-secondary text-[12px]">{new Date(selectedComplaint.createdAt).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <span className="text-secondary font-label-sm uppercase font-bold block mb-1">Reported Issue Description</span>
+                <p className="text-on-surface text-body-md leading-relaxed whitespace-pre-line bg-surface-container-low p-3 rounded-lg border border-outline-variant/30">
+                  {selectedComplaint.description}
+                </p>
+              </div>
+
+              {/* Photographic Evidence */}
+              {selectedComplaint.imageUrl && (
+                <div>
+                  <span className="text-secondary font-label-sm uppercase font-bold block mb-1">Attached Photographic Evidence</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowEvidence(true)}
+                    className="p-2 bg-surface-container-low border border-outline-variant rounded-lg flex items-center gap-2 text-primary font-semibold text-body-sm hover:bg-surface-container cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">image</span>
+                    <span>View Photographic Evidence</span>
+                  </button>
                 </div>
               )}
 
-              {/* Student & Equipment Specs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-surface-container-low rounded-lg border border-outline-variant/40 text-body-sm">
-                <div>
-                  <span className="font-label-sm text-label-sm uppercase text-secondary font-bold block">
-                    Filing Student
-                  </span>
-                  <span className="font-semibold text-on-surface">
-                    {selectedComplaint.studentId?.name || 'Authorized Student'}
-                  </span>
-                  <span className="block text-secondary font-mono text-[11px]">
-                    {selectedComplaint.studentId?.email}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-label-sm text-label-sm uppercase text-secondary font-bold block">
-                    Target Station & Facility
-                  </span>
-                  <span className="font-semibold text-on-surface">
-                    {selectedComplaint.systemNumber}
-                  </span>
-                  <span className="block text-secondary text-[11px] truncate">
-                    {selectedComplaint.labName}
-                  </span>
-                </div>
-              </div>
+              {/* Action Buttons (Only available if in SUBMITTED_TO_LAB_INCHARGE status) */}
+              {['SUBMITTED_TO_LAB_INCHARGE', 'LAB_INCHARGE_VERIFICATION', 'SUBMITTED'].includes(selectedComplaint.status) && (
+                <div className="pt-4 border-t border-outline-variant/30 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectModal(true)}
+                    className="btn-tactile-secondary text-error px-5 py-2.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">cancel</span>
+                    <span>Reject Grievance</span>
+                  </button>
 
-              {/* Description Body */}
-              <div className="space-y-1.5">
-                <span className="font-label-md text-label-md uppercase text-secondary font-bold tracking-wide">
-                  Observed Defect & Diagnostic Telemetry
-                </span>
-                <div className="p-4 bg-surface-container-low/70 rounded-lg text-body-md text-on-surface border border-outline-variant/30 leading-relaxed whitespace-pre-wrap">
-                  {selectedComplaint.description}
+                  <button
+                    type="button"
+                    onClick={() => setShowVerifyModal(true)}
+                    className="btn-tactile-primary px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 cursor-pointer shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">verified</span>
+                    <span>Approve & Forward to HOD</span>
+                  </button>
                 </div>
-              </div>
+              )}
 
-              {/* Action Bar */}
-              <div className="pt-4 border-t border-outline-variant/30 flex items-center justify-end gap-3 flex-wrap">
-                <button
-                  onClick={() => setShowRejectModal(true)}
-                  disabled={actionLoading}
-                  className="btn-tactile-danger px-4 py-2.5 rounded-lg text-body-sm font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
-                  Reject Equipment Issue
-                </button>
-
-                <button
-                  onClick={() => setShowVerifyModal(true)}
-                  disabled={actionLoading}
-                  className="btn-tactile-primary px-5 py-2.5 rounded-lg text-body-sm font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[18px]">verified_user</span>
-                  Verify & Assign to Main Admin
-                </button>
-              </div>
+              {/* If already approved */}
+              {selectedComplaint.status === 'LAB_INCHARGE_APPROVED' && (
+                <div className="p-3 bg-blue-50 text-blue-900 rounded-lg text-body-sm flex items-center gap-2 border border-blue-200">
+                  <span className="material-symbols-outlined text-[20px] text-blue-700">check_circle</span>
+                  <span>Verified by Lab In-Charge & forwarded to HOD for departmental sign-off.</span>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="p-12 text-center bg-surface-container-lowest rounded-xl border border-outline-variant/30 space-y-2">
-              <span className="material-symbols-outlined text-secondary text-[40px]">touch_app</span>
-              <h4 className="font-bold text-on-surface">Select an Issue to Review</h4>
-              <p className="text-secondary text-body-sm text-[12px]">
-                Click any pending ticket in the queue on the left to inspect hardware fault details.
-              </p>
+            <div className="p-12 text-center bg-surface-container-lowest rounded-xl border border-outline-variant/30 text-secondary">
+              Select a grievance from the left to inspect diagnostics and perform verification.
             </div>
           )}
         </div>
       </div>
 
-      {/* Verify Confirmation Modal */}
+      {/* Verify & Forward Modal */}
       {showVerifyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
-          <div className="max-w-lg w-full bg-surface-container-lowest rounded-xl shadow-2xl border border-outline-variant p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <span className="material-symbols-outlined text-[24px]">verified_user</span>
-              </div>
-              <div>
-                <h3 className="font-headline-sm text-body-md font-bold text-on-surface">
-                  Confirm Lab Incharge Verification
-                </h3>
-                <p className="font-label-sm text-label-sm text-secondary font-mono">
-                  {selectedComplaint?.complaintId}
-                </p>
-              </div>
-            </div>
-
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant max-w-md w-full space-y-4 shadow-xl">
+            <h3 className="font-headline-sm font-bold text-on-surface">Approve & Forward to HOD</h3>
             <p className="text-body-sm text-secondary">
-              Verifying this ticket will transition the status to <strong>ASSIGNED_TO_MAIN_ADMIN</strong>. A campus work order will be created for the hardware maintenance team.
+              Confirm that you have inspected workstation <strong>{selectedComplaint?.systemNumber}</strong> in <strong>{selectedComplaint?.labName}</strong>. This request will be forwarded to the HOD of {selectedComplaint?.department}.
             </p>
-
-            <div className="space-y-1.5">
-              <label className="font-label-md text-secondary uppercase font-bold text-xs" htmlFor="incharge-verify-remarks">
-                Hardware Inspection Notes (Optional)
-              </label>
-              <textarea
-                id="incharge-verify-remarks"
-                rows="3"
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="e.g. Diagnostic bench test confirms memory fault. Hardware swap required by campus admin."
-                className="w-full bg-surface-container-low text-on-surface font-body-md rounded p-3 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <textarea
+              rows={3}
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="Technical remarks (e.g. Hardware diagnostic confirmed, requires parts/technician)."
+              className="w-full bg-surface-container-low text-on-surface font-body-md rounded-lg p-3 border border-outline-variant focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setShowVerifyModal(false);
-                  setRemarks('');
-                }}
-                className="btn-tactile-secondary px-4 py-2 rounded-lg text-body-sm font-semibold cursor-pointer"
+                onClick={() => setShowVerifyModal(false)}
+                className="btn-tactile-secondary px-4 py-2 rounded-lg font-semibold"
               >
                 Cancel
               </button>
@@ -368,9 +386,9 @@ export default function LabInchargeQueue() {
                 type="button"
                 disabled={actionLoading}
                 onClick={handleVerify}
-                className="btn-tactile-primary px-5 py-2 rounded-lg text-body-sm font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="btn-tactile-primary px-5 py-2 rounded-lg font-bold"
               >
-                {actionLoading ? 'Escalating...' : 'Confirm & Escalate'}
+                Confirm & Escalate
               </button>
             </div>
           </div>
@@ -379,49 +397,25 @@ export default function LabInchargeQueue() {
 
       {/* Reject Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
-          <div className="max-w-lg w-full bg-surface-container-lowest rounded-xl shadow-2xl border border-outline-variant p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-error-container text-on-error-container flex items-center justify-center">
-                <span className="material-symbols-outlined text-[24px]">cancel</span>
-              </div>
-              <div>
-                <h3 className="font-headline-sm text-body-md font-bold text-on-surface">
-                  Reject Issue After Inspection
-                </h3>
-                <p className="font-label-sm text-label-sm text-secondary font-mono">
-                  {selectedComplaint?.complaintId}
-                </p>
-              </div>
-            </div>
-
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant max-w-md w-full space-y-4 shadow-xl">
+            <h3 className="font-headline-sm font-bold text-error">Reject Laboratory Grievance</h3>
             <p className="text-body-sm text-secondary">
-              This complaint will be permanently terminated with status <strong className="text-error">REJECTED</strong>. The student will be notified.
+              Please enter the specific reason for rejecting this problem report (minimum 5 characters).
             </p>
-
-            <div className="space-y-1.5">
-              <label className="font-label-md text-secondary uppercase font-bold text-xs" htmlFor="incharge-reject-remarks">
-                Technical Rejection Reason (Mandatory, min 5 chars)
-              </label>
-              <textarea
-                id="incharge-reject-remarks"
-                rows="3"
-                required
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="State hardware inspection results or user-error instructions..."
-                className="w-full bg-surface-container-low text-on-surface font-body-md rounded p-3 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-error shadow-inner"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <textarea
+              rows={3}
+              required
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="e.g. Workstation tested and fully operational; cable was unplugged by student."
+              className="w-full bg-surface-container-low text-on-surface font-body-md rounded-lg p-3 border border-outline-variant focus:outline-none focus:ring-2 focus:ring-error"
+            />
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRemarks('');
-                }}
-                className="btn-tactile-secondary px-4 py-2 rounded-lg text-body-sm font-semibold cursor-pointer"
+                onClick={() => setShowRejectModal(false)}
+                className="btn-tactile-secondary px-4 py-2 rounded-lg font-semibold"
               >
                 Cancel
               </button>
@@ -429,21 +423,20 @@ export default function LabInchargeQueue() {
                 type="button"
                 disabled={actionLoading}
                 onClick={handleReject}
-                className="btn-tactile-danger px-5 py-2 rounded-lg text-body-sm font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="bg-error hover:bg-error/90 text-on-error font-bold px-5 py-2 rounded-lg"
               >
-                {actionLoading ? 'Rejecting...' : 'Reject Grievance'}
+                Reject Request
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Lightbox */}
-      {showEvidence && selectedComplaint?.imageUrl && (
+      {/* Evidence Modal */}
+      {showEvidence && selectedComplaint && (
         <EvidenceModal
           imageUrl={selectedComplaint.imageUrl}
-          complaintId={selectedComplaint.complaintId}
-          labName={selectedComplaint.labName}
+          title={selectedComplaint.title}
           onClose={() => setShowEvidence(false)}
         />
       )}

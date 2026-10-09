@@ -9,33 +9,43 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
   const navItems = [
     {
       to: '/student-hub',
-      label: 'Student Hub / Dashboard',
+      label: 'Student Portal & Issues',
       icon: 'hub',
-      roles: ['STUDENT', 'HOD', 'LAB_INCHARGE', 'MAIN_ADMIN'],
+      roles: ['STUDENT', 'HOD', 'LAB_INCHARGE', 'REPAIR_ASSISTANT', 'MAIN_ADMIN'],
     },
     {
       to: '/raise-issue',
-      label: 'Raise Issue',
+      label: 'Report Problem',
       icon: 'report_problem',
-      badge: 'NEW',
-      roles: ['STUDENT'],
-    },
-    {
-      to: '/hod-queue',
-      label: 'HOD Verification Queue',
-      icon: 'assignment_turned_in',
-      roles: ['HOD', 'MAIN_ADMIN'],
+      badge: 'Step 1',
+      roles: ['STUDENT', 'LAB_INCHARGE', 'MAIN_ADMIN'],
     },
     {
       to: '/lab-incharge-queue',
-      label: 'Lab Incharge Verification',
+      label: 'Lab In-Charge Verification',
       icon: 'verified_user',
+      badge: 'Step 2',
       roles: ['LAB_INCHARGE', 'MAIN_ADMIN'],
     },
     {
+      to: '/hod-queue',
+      label: 'HOD Department Queue',
+      icon: 'gavel',
+      badge: 'Step 3',
+      roles: ['HOD', 'MAIN_ADMIN'],
+    },
+    {
+      to: '/repair-assistant',
+      label: 'Field Repair Tasks',
+      icon: 'build',
+      badge: 'Step 4',
+      roles: ['REPAIR_ASSISTANT', 'MAIN_ADMIN'],
+    },
+    {
       to: '/admin-console',
-      label: 'Admin Ops & Work Orders',
+      label: 'Admin Operations Suite',
       icon: 'engineering',
+      badge: 'Admin',
       roles: ['MAIN_ADMIN'],
     },
   ];
@@ -69,8 +79,8 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
                 <span className="font-headline-sm text-headline-sm text-primary tracking-tight font-bold">
                   LabPulse
                 </span>
-                <span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest">
-                  Campus Ops v2.4
+                <span className="font-label-sm text-label-sm text-secondary uppercase tracking-widest text-[10px]">
+                  MLRIT Campus Ops v2.5
                 </span>
               </div>
             </div>
@@ -84,16 +94,16 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
             </button>
           </div>
 
-          {/* Live Lab Status Pill */}
+          {/* Department / Scope Pill */}
           <div className="px-space-md py-space-sm">
-            <div className="p-space-xs bg-surface-container-low rounded flex items-center justify-between border border-outline-variant/40">
-              <div className="flex items-center gap-space-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
-                <span className="font-label-sm text-label-sm text-on-surface font-semibold uppercase">
-                  A-104 → IoT 402
+            <div className="p-space-xs bg-surface-container-low rounded-lg flex items-center justify-between border border-outline-variant/40">
+              <div className="flex items-center gap-space-xs overflow-hidden">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse shrink-0"></span>
+                <span className="font-label-sm text-label-sm text-on-surface font-semibold truncate text-[11px]">
+                  {user?.department || 'MLRIT Central'}
                 </span>
               </div>
-              <span className="font-label-sm text-label-sm text-emerald-700 bg-emerald-50 px-1 rounded uppercase font-bold">
+              <span className="font-label-sm text-[10px] text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded uppercase font-bold shrink-0">
                 Live
               </span>
             </div>
@@ -111,10 +121,10 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
                   to={item.to}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    `flex items-center justify-between px-space-sm py-2 rounded transition-all text-body-sm font-body-sm ${
+                    `flex items-center justify-between px-space-sm py-2 rounded-lg transition-all text-body-sm ${
                       isActive
-                        ? 'bg-primary text-on-primary font-semibold shadow-[0_3px_0_0_#1e40af] translate-y-[-1px]'
-                        : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                        ? 'bg-primary text-on-primary font-bold shadow-[0_2px_0_0_#1e40af] translate-y-[-1px]'
+                        : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-medium'
                     }`
                   }
                 >
@@ -122,10 +132,10 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
                     <span className="material-symbols-outlined text-[20px]">
                       {item.icon}
                     </span>
-                    <span>{item.label}</span>
+                    <span className="text-[13px]">{item.label}</span>
                   </div>
                   {item.badge && (
-                    <span className="font-label-sm text-label-sm bg-tertiary-container text-on-tertiary font-bold px-1.5 py-0.5 rounded">
+                    <span className="font-label-sm text-[10px] bg-surface-container-highest text-on-surface font-bold px-1.5 py-0.5 rounded border border-outline-variant/40">
                       {item.badge}
                     </span>
                   )}
@@ -136,28 +146,28 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
 
           {/* Bottom SLA Benchmark Card */}
           <div className="p-space-sm border-t border-outline-variant/30">
-            <div className="p-space-sm bg-surface-container-low rounded border border-outline-variant/40 space-y-space-xs">
+            <div className="p-space-sm bg-surface-container-low rounded-lg border border-outline-variant/40 space-y-space-xs">
               <div className="flex items-center justify-between">
-                <span className="font-label-sm text-label-sm uppercase text-secondary font-bold">
-                  SLA Benchmark
+                <span className="font-label-sm text-[11px] uppercase text-secondary font-bold">
+                  SLA Target Health
                 </span>
-                <span className="font-label-sm text-label-sm text-emerald-700 bg-emerald-100 px-1 py-0.5 rounded font-semibold">
-                  4.2h Avg
+                <span className="font-label-sm text-[11px] text-emerald-800 bg-emerald-100 px-1 py-0.5 rounded font-semibold">
+                  98.7%
                 </span>
               </div>
               <div className="w-full bg-surface-container-highest h-1 rounded overflow-hidden">
-                <div className="bg-primary h-full w-[82%]"></div>
+                <div className="bg-primary h-full w-[88%]"></div>
               </div>
               <div className="flex items-center gap-space-xs pt-1">
                 <span className="material-symbols-outlined text-[16px] text-tertiary">
                   support_agent
                 </span>
                 <div className="flex flex-col">
-                  <span className="font-label-sm text-label-sm text-on-surface font-semibold">
-                    Campus Hotline
+                  <span className="font-label-sm text-[11px] text-on-surface font-semibold">
+                    Campus Helpdesk
                   </span>
-                  <span className="font-label-sm text-label-sm text-secondary font-mono">
-                    EXT #4092 / #4095
+                  <span className="font-label-sm text-[10px] text-secondary font-mono">
+                    EXT #4092 &bull; MLRIT Labs
                   </span>
                 </div>
               </div>
