@@ -10,11 +10,9 @@ export default function Register() {
     password: '',
     rollNumber: '',
     department: 'Computer Science & Engineering',
-    specialization: 'Core Computer Science',
   });
 
   const [departments, setDepartments] = useState([]);
-  const [currentSpecializations, setCurrentSpecializations] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -32,9 +30,7 @@ export default function Register() {
           setFormData((prev) => ({
             ...prev,
             department: defaultDept.name,
-            specialization: defaultDept.specializations?.[0] || 'General',
           }));
-          setCurrentSpecializations(defaultDept.specializations || []);
         }
       } catch (err) {
         console.warn('Could not load dynamic departments, using baseline:', err.message);
@@ -44,14 +40,9 @@ export default function Register() {
   }, []);
 
   const handleDepartmentChange = (e) => {
-    const selectedDeptName = e.target.value;
-    const found = departments.find((d) => d.name === selectedDeptName);
-    const specs = found?.specializations || [];
-    setCurrentSpecializations(specs);
     setFormData({
       ...formData,
-      department: selectedDeptName,
-      specialization: specs[0] || 'General',
+      department: e.target.value,
     });
   };
 
@@ -197,18 +188,18 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Department & Specialization Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block font-label-md text-secondary uppercase font-bold tracking-wide" htmlFor="department">
-                  Department
-                </label>
+            {/* Department Selection */}
+            <div>
+              <label className="block font-label-md text-secondary uppercase font-bold tracking-wide" htmlFor="department">
+                Department <span className="text-error">*</span>
+              </label>
+              <div className="mt-1 relative">
                 <select
                   id="department"
                   name="department"
                   value={formData.department}
                   onChange={handleDepartmentChange}
-                  className="mt-1 w-full bg-surface-container-low text-on-surface font-body-md rounded-lg p-3 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner font-medium"
+                  className="w-full bg-surface-container-low text-on-surface font-body-md rounded-lg p-3 pl-10 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner font-medium"
                 >
                   {departments.length > 0 ? (
                     departments.map((d) => (
@@ -230,29 +221,9 @@ export default function Register() {
                     </>
                   )}
                 </select>
-              </div>
-
-              <div>
-                <label className="block font-label-md text-secondary uppercase font-bold tracking-wide" htmlFor="specialization">
-                  Specialization / Stream
-                </label>
-                <select
-                  id="specialization"
-                  name="specialization"
-                  value={formData.specialization}
-                  onChange={handleChange}
-                  className="mt-1 w-full bg-surface-container-low text-on-surface font-body-md rounded-lg p-3 border border-outline-variant/60 focus:outline-none focus:ring-2 focus:ring-primary shadow-inner font-medium"
-                >
-                  {currentSpecializations.length > 0 ? (
-                    currentSpecializations.map((spec) => (
-                      <option key={spec} value={spec}>
-                        {spec}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="Core Specialization">Core Specialization</option>
-                  )}
-                </select>
+                <span className="material-symbols-outlined absolute left-3 top-3 text-secondary text-[20px]">
+                  domain
+                </span>
               </div>
             </div>
 
