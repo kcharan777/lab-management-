@@ -26,6 +26,10 @@ export const adminService = {
     return await api.patch(`/main-admin/complaints/${id}/resolve`, data);
   },
 
+  addCompletionProof: async (id, completionProofImageUrl) => {
+    return await api.patch(`/main-admin/complaints/${id}/proof`, { completionProofImageUrl });
+  },
+
   // --- Dynamic Laboratories ---
   getLabs: async (params = {}) => {
     return await api.get('/labs', { params });

@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function EvidenceModal({ imageUrl, complaintId, labName, onClose }) {
+export default function EvidenceModal({ imageUrl, complaintId, labName, title = 'Equipment Fault Evidence Studio', onClose }) {
   if (!imageUrl) return null;
 
   return (
@@ -12,7 +12,7 @@ export default function EvidenceModal({ imageUrl, complaintId, labName, onClose 
             <span className="material-symbols-outlined text-primary text-[24px]">photo_camera</span>
             <div>
               <h3 className="font-headline-sm text-body-md font-bold text-on-surface">
-                Equipment Fault Evidence Studio
+                {title}
               </h3>
               <p className="font-label-sm text-label-sm text-secondary font-mono">
                 {complaintId} • {labName}

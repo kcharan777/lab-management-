@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/common/Toast';
 import { adminService } from '../services/adminService';
+import { complaintService } from '../services/complaintService';
 import EvidenceModal from '../components/complaints/EvidenceModal';
 
 export default function AdminConsole() {
@@ -16,7 +17,7 @@ export default function AdminConsole() {
   const [kanban, setKanban] = useState({ intake: [], assigned: [], inProgress: [], resolved: [] });
   const [telemetry, setTelemetry] = useState({ totalWorkOrders: 0, openCount: 0, resolvedCount: 0, rejectedCount: 0, avgTurnaroundHours: 3.8, equipmentSlaHealth: '98.7%' });
   const [selectedComplaint, setSelectedComplaint] = useState(null);
-  const [showEvidence, setShowEvidence] = useState(false);
+  const [evidenceModalData, setEvidenceModalData] = useState({ isOpen: false, imageUrl: '', title: '' });
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
   const [labFilter, setLabFilter] = useState('ALL');
@@ -25,10 +26,13 @@ export default function AdminConsole() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [showResolveModal, setShowResolveModal] = useState(false);
+  const [showProofModal, setShowProofModal] = useState(false);
   const [selectedAssistantId, setSelectedAssistantId] = useState('');
   const [assignRemarks, setAssignRemarks] = useState('Work order authorized by Admin and dispatched to Repair Assistant.');
   const [progressNote, setProgressNote] = useState('');
   const [resolutionRemarks, setResolutionRemarks] = useState('');
+  const [proofImageUrl, setProofImageUrl] = useState('');
+  const [proofUploading, setProofUploading] = useState(false);
 
   // --- Dynamic Labs State ---
   const [labs, setLabs] = useState([]);
@@ -210,15 +214,56 @@ export default function AdminConsole() {
       const res = await adminService.resolveComplaint(selectedComplaint.complaintId, {
         resolutionRemarks,
         closeImmediately: true,
+        completionProofImageUrl: proofImageUrl.trim() || undefined,
       });
       if (res.success) {
         addToast(`Work order ${selectedComplaint.complaintId} resolved and closed. HOD & Lab In-Charge notified.`, 'success');
         setShowResolveModal(false);
         setResolutionRemarks('');
+        setProofImageUrl('');
         fetchWorkOrders();
       }
     } catch (err) {
       addToast(err.message || 'Failed to resolve work order', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUploadProofImage = async (file) => {
+    if (!file) return;
+    try {
+      setProofUploading(true);
+      const res = await complaintService.uploadEvidenceImage(file);
+      const uploadedUrl = res?.data?.imageUrl || res?.imageUrl;
+      if (uploadedUrl) {
+        setProofImageUrl(uploadedUrl);
+        addToast('Proof image uploaded successfully!', 'success');
+      } else {
+        throw new Error('Image uploaded, but server did not return a valid URL.');
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to upload proof image', 'error');
+    } finally {
+      setProofUploading(false);
+    }
+  };
+
+  const handleAddProofToResolved = async () => {
+    if (!selectedComplaint || !proofImageUrl.trim()) return;
+    try {
+      setActionLoading(true);
+      const res = await adminService.addCompletionProof(selectedComplaint.complaintId, proofImageUrl.trim());
+      if (res.success) {
+        addToast('Completion proof image attached successfully!', 'success');
+        setShowProofModal(false);
+        const attachedUrl = proofImageUrl.trim();
+        setProofImageUrl('');
+        setSelectedComplaint((prev) => (prev ? { ...prev, completionProofImageUrl: attachedUrl } : null));
+        fetchWorkOrders();
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to attach proof', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -363,45 +408,66 @@ export default function AdminConsole() {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-space-md lg:px-margin py-space-md space-y-space-lg">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md pb-space-sm border-b border-outline-variant/30">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-label-md font-label-md text-secondary">
-            <span>Central Administration</span>
-            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="text-primary font-semibold">Step 4: Operations Console</span>
-          </div>
-          <h1 className="font-headline-xl text-headline-xl text-on-surface tracking-tight font-bold">
-            Campus Operations Management Console
-          </h1>
-          <p className="font-body-md text-body-md text-secondary">
-            Centralized orchestration: Step 4 work orders, dynamic laboratories, faculty governance & student verification
-          </p>
-        </div>
+    <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-6 space-y-6 animate-in fade-in duration-300">
+      {/* 1. Distinct Theme Header: Campus Infrastructure Command Matrix */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 border border-blue-500/30 p-6 sm:p-7 text-white shadow-xl">
+        {/* Cybernetic Command Accents */}
+        <div className="absolute inset-0 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:24px_24px] opacity-10 pointer-events-none"></div>
+        <div className="absolute -top-10 -right-10 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-10 left-1/3 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        {/* Console Navigation Tabs */}
-        <div className="flex items-center gap-1 bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/40 overflow-x-auto max-w-full">
-          {[
-            { id: 'work-orders', label: 'Work Orders', icon: 'engineering' },
-            { id: 'labs', label: 'Dynamic Labs', icon: 'domain' },
-            { id: 'departments', label: 'Departments', icon: 'account_tree' },
-            { id: 'staff', label: 'Faculty & Assistants', icon: 'badge' },
-            { id: 'students', label: 'Student Registry', icon: 'verified_user' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-body-sm font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-primary text-on-primary shadow-xs'
-                  : 'text-secondary hover:text-on-surface'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-cyan-300 font-mono text-[11px] font-bold border border-blue-500/40 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                STEP 04 // CENTRAL OPERATIONS MATRIX
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[11px] font-bold border border-emerald-500/30 flex items-center gap-1">
+                <span className="material-symbols-outlined text-[13px]">radar</span>
+                LIVE SLA: {telemetry.equipmentSlaHealth || '98.7%'}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-slate-200 font-mono text-[11px] border border-white/15">
+                MTTR: {telemetry.avgTurnaroundHours || '3.8'}h
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono text-[11px] font-medium border border-indigo-500/30">
+                CAMPUS SUPERUSER
+              </span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-cyan-400 text-[32px]">satellite_alt</span>
+              <span>Campus Infrastructure Command Center</span>
+            </h1>
+
+            <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
+              Global operations orchestration: triage Step 4 work orders, deploy repair assistants, configure dynamic laboratories, and manage university access registry.
+            </p>
+          </div>
+
+          {/* Mission Control Navigation Tabs */}
+          <div className="flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md p-1.5 rounded-xl border border-blue-500/30 overflow-x-auto max-w-full shrink-0 self-start md:self-auto">
+            {[
+              { id: 'work-orders', label: 'Work Orders', icon: 'engineering' },
+              { id: 'labs', label: 'Dynamic Labs', icon: 'domain' },
+              { id: 'departments', label: 'Departments', icon: 'account_tree' },
+              { id: 'staff', label: 'Faculty & Assistants', icon: 'badge' },
+              { id: 'students', label: 'Student Registry', icon: 'verified_user' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-600/40 font-extrabold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[17px]">{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -409,24 +475,101 @@ export default function AdminConsole() {
       {/* TAB 1: WORK ORDERS & KANBAN TRIAGE */}
       {/* ======================================================== */}
       {activeTab === 'work-orders' && (
-        <div className="space-y-space-md animate-in fade-in duration-200">
+        <div className="space-y-6 animate-in fade-in duration-200">
           {/* Telemetry KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-space-sm">
-            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/30">
-              <span className="text-secondary font-label-sm uppercase font-bold">Total Work Orders</span>
-              <div className="font-headline-lg font-bold text-on-surface mt-1">{telemetry.totalWorkOrders}</div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm transition-all hover:-translate-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-secondary font-mono text-[11px] uppercase font-bold tracking-wider">Total Work Orders</span>
+                <span className="material-symbols-outlined text-blue-500 text-[20px]">assignment</span>
+              </div>
+              <div className="font-mono text-2xl sm:text-3xl font-black text-on-surface mt-1.5">{telemetry.totalWorkOrders}</div>
+              <span className="text-[11px] text-secondary font-medium">All recorded campus tickets</span>
             </div>
-            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/30">
-              <span className="text-amber-800 font-label-sm uppercase font-bold">HOD Approved Intake</span>
-              <div className="font-headline-lg font-bold text-amber-700 mt-1">{kanban.intake.length}</div>
+
+            <div className="p-4 rounded-xl bg-surface-container-lowest border border-amber-400/40 shadow-sm transition-all hover:-translate-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-amber-700 font-mono text-[11px] uppercase font-bold tracking-wider">HOD Approved Intake</span>
+                <span className="material-symbols-outlined text-amber-500 text-[20px]">mark_email_unread</span>
+              </div>
+              <div className="font-mono text-2xl sm:text-3xl font-black text-amber-600 mt-1.5">{kanban.intake.length}</div>
+              <span className="text-[11px] text-amber-700 font-medium">Awaiting assistant assignment</span>
             </div>
-            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/30">
-              <span className="text-blue-800 font-label-sm uppercase font-bold">Assigned / In Progress</span>
-              <div className="font-headline-lg font-bold text-blue-700 mt-1">{kanban.assigned.length + kanban.inProgress.length}</div>
+
+            <div className="p-4 rounded-xl bg-surface-container-lowest border border-blue-400/40 shadow-sm transition-all hover:-translate-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-blue-700 font-mono text-[11px] uppercase font-bold tracking-wider">Assigned / In Progress</span>
+                <span className="material-symbols-outlined text-blue-500 text-[20px]">build_circle</span>
+              </div>
+              <div className="font-mono text-2xl sm:text-3xl font-black text-blue-600 mt-1.5">{kanban.assigned.length + kanban.inProgress.length}</div>
+              <span className="text-[11px] text-blue-700 font-medium">Active field repairs underway</span>
             </div>
-            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/30">
-              <span className="text-emerald-800 font-label-sm uppercase font-bold">Resolved & Closed</span>
-              <div className="font-headline-lg font-bold text-emerald-700 mt-1">{kanban.resolved.length}</div>
+
+            <div className="p-4 rounded-xl bg-surface-container-lowest border border-emerald-400/40 shadow-sm transition-all hover:-translate-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-emerald-700 font-mono text-[11px] uppercase font-bold tracking-wider">Resolved & Closed</span>
+                <span className="material-symbols-outlined text-emerald-500 text-[20px]">task_alt</span>
+              </div>
+              <div className="font-mono text-2xl sm:text-3xl font-black text-emerald-600 mt-1.5">{kanban.resolved.length}</div>
+              <span className="text-[11px] text-emerald-700 font-medium">Successfully certified restored</span>
+            </div>
+          </div>
+
+          {/* Search, Filter & Refresh Command Bar */}
+          <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-1 max-w-md">
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') fetchWorkOrders(); }}
+                  placeholder="Search work order ID, system or title..."
+                  className="w-full bg-surface-container-low text-on-surface text-xs rounded-xl p-2.5 pl-8 border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-secondary text-[16px]">search</span>
+              </div>
+              <button
+                type="button"
+                onClick={fetchWorkOrders}
+                className="px-3 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-all"
+              >
+                Search
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={priorityFilter}
+                onChange={(e) => { setPriorityFilter(e.target.value); }}
+                className="bg-surface-container-low text-on-surface text-xs rounded-xl p-2.5 border border-outline-variant/50 font-medium focus:outline-none"
+              >
+                <option value="ALL">All Priorities</option>
+                <option value="URGENT">Urgent</option>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+              </select>
+
+              <select
+                value={labFilter}
+                onChange={(e) => { setLabFilter(e.target.value); }}
+                className="bg-surface-container-low text-on-surface text-xs rounded-xl p-2.5 border border-outline-variant/50 font-medium focus:outline-none max-w-[180px]"
+              >
+                <option value="ALL">All Laboratories</option>
+                {labs.map((l) => (
+                  <option key={l._id} value={l.name}>{l.name}</option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={fetchWorkOrders}
+                className="p-2.5 rounded-xl border border-outline-variant/50 hover:bg-surface-container-low text-secondary hover:text-on-surface cursor-pointer transition-colors"
+                title="Refresh Triage"
+              >
+                <span className="material-symbols-outlined text-[18px]">refresh</span>
+              </button>
             </div>
           </div>
 
@@ -564,11 +707,29 @@ export default function AdminConsole() {
                   {selectedComplaint.imageUrl && (
                     <button
                       type="button"
-                      onClick={() => setShowEvidence(true)}
-                      className="btn-tactile-secondary p-2 rounded-lg flex items-center gap-1 text-body-sm"
+                      onClick={() => setEvidenceModalData({
+                        isOpen: true,
+                        imageUrl: selectedComplaint.imageUrl,
+                        title: 'Equipment Fault Photographic Evidence',
+                      })}
+                      className="btn-tactile-secondary p-2 rounded-lg flex items-center gap-1 text-body-sm cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[18px]">image</span>
-                      <span>Evidence</span>
+                      <span>Fault Evidence</span>
+                    </button>
+                  )}
+                  {selectedComplaint.completionProofImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEvidenceModalData({
+                        isOpen: true,
+                        imageUrl: selectedComplaint.completionProofImageUrl,
+                        title: 'Work Completion Photographic Proof',
+                      })}
+                      className="p-2 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg flex items-center gap-1 text-body-sm font-semibold hover:bg-emerald-100 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[18px] text-emerald-600">verified</span>
+                      <span>Completion Proof</span>
                     </button>
                   )}
                 </div>
@@ -623,6 +784,36 @@ export default function AdminConsole() {
                       <span className="material-symbols-outlined text-[18px]">task_alt</span>
                       <span>Mark Work Order Resolved</span>
                     </button>
+                  </>
+                )}
+
+                {['RESOLVED', 'CLOSED'].includes(selectedComplaint.status) && (
+                  <>
+                    {!selectedComplaint.completionProofImageUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProofImageUrl('');
+                          setShowProofModal(true);
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-sm cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">add_photo_alternate</span>
+                        <span>Attach Completion Proof</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProofImageUrl('');
+                          setShowProofModal(true);
+                        }}
+                        className="btn-tactile-secondary px-4 py-2.5 rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer text-emerald-800"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                        <span>Update Completion Proof</span>
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -1450,10 +1641,60 @@ export default function AdminConsole() {
               placeholder="e.g. Power supply unit (PSU 450W) replaced and tested under full load. Equipment certified operational."
               className="w-full bg-surface-container-low text-on-surface font-body-md rounded-lg p-3 border border-outline-variant focus:outline-none focus:ring-2 focus:ring-emerald-600"
             />
+
+            {/* Optional proof image upload */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-secondary block">Work Completion Proof (Optional)</label>
+              {proofImageUrl ? (
+                <div className="relative">
+                  <img src={proofImageUrl} alt="Proof preview" className="w-full h-32 object-cover rounded-lg border border-emerald-300" />
+                  <button
+                    type="button"
+                    onClick={() => setProofImageUrl('')}
+                    className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center text-[12px] hover:bg-red-600 cursor-pointer"
+                  >×</button>
+                  <div className="mt-1.5 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                    Proof image ready
+                  </div>
+                </div>
+              ) : (
+                <label
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer?.files?.[0]) {
+                      handleUploadProofImage(e.dataTransfer.files[0]);
+                    }
+                  }}
+                  className="flex items-center gap-2 p-3 bg-surface-container-low border border-dashed border-outline-variant rounded-lg cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/40 transition-colors"
+                >
+                  {proofUploading ? (
+                    <><div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /><span className="text-body-sm text-secondary">Uploading...</span></>
+                  ) : (
+                    <><span className="material-symbols-outlined text-[20px] text-secondary">add_photo_alternate</span><span className="text-body-sm text-secondary">Click to attach proof photo</span></>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleUploadProofImage(e.target.files[0]);
+                      }
+                      e.target.value = '';
+                    }}
+                    disabled={proofUploading}
+                  />
+                </label>
+              )}
+            </div>
+
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowResolveModal(false)}
+                onClick={() => { setShowResolveModal(false); setProofImageUrl(''); }}
                 className="btn-tactile-secondary px-4 py-2 rounded-lg font-semibold"
               >
                 Cancel
@@ -1471,12 +1712,97 @@ export default function AdminConsole() {
         </div>
       )}
 
+      {/* 9. Attach Proof to Already-Resolved Modal */}
+      {showProofModal && selectedComplaint && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant max-w-md w-full space-y-4 shadow-xl">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-emerald-600 text-[22px]">add_photo_alternate</span>
+              <h3 className="font-headline-sm font-bold text-on-surface">Attach Work Completion Proof</h3>
+            </div>
+            <p className="text-body-sm text-secondary">
+              Upload a photo confirming the repair is complete for <span className="font-mono font-bold text-primary">{selectedComplaint.complaintId}</span>. Visible to student, HOD, and Lab In-Charge.
+            </p>
+
+            {proofImageUrl ? (
+              <div className="relative">
+                <img src={proofImageUrl} alt="Proof preview" className="w-full h-44 object-cover rounded-xl border border-emerald-300" />
+                <button
+                  type="button"
+                  onClick={() => setProofImageUrl('')}
+                  className="absolute top-2 right-2 w-7 h-7 bg-black/60 text-white rounded-full flex items-center justify-center text-[14px] hover:bg-red-600 cursor-pointer"
+                >×</button>
+              </div>
+            ) : (
+              <label
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.dataTransfer?.files?.[0]) {
+                    handleUploadProofImage(e.dataTransfer.files[0]);
+                  }
+                }}
+                className="flex flex-col items-center justify-center gap-2 p-8 bg-surface-container-low border-2 border-dashed border-outline-variant rounded-xl cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/40 transition-colors"
+              >
+                {proofUploading ? (
+                  <><div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /><span className="text-body-sm text-secondary">Uploading image to cloud...</span></>
+                ) : (
+                  <><span className="material-symbols-outlined text-[40px] text-secondary">add_photo_alternate</span><span className="text-body-sm text-secondary font-medium">Click or drag a photo here</span><span className="text-[11px] text-secondary/70">JPG, PNG, WEBP supported</span></>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      handleUploadProofImage(e.target.files[0]);
+                    }
+                    e.target.value = '';
+                  }}
+                  disabled={proofUploading}
+                />
+              </label>
+            )}
+
+            {proofImageUrl && (
+              <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[12px] text-emerald-800">
+                <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
+                Image ready to attach
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowProofModal(false); setProofImageUrl(''); }}
+                className="btn-tactile-secondary px-4 py-2 rounded-lg font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading || !proofImageUrl}
+                onClick={handleAddProofToResolved}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-5 py-2 rounded-lg flex items-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">upload</span>
+                Attach Proof
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Evidence Modal */}
-      {showEvidence && selectedComplaint && (
+      {evidenceModalData.isOpen && selectedComplaint && (
         <EvidenceModal
-          imageUrl={selectedComplaint.imageUrl}
-          title={selectedComplaint.title}
-          onClose={() => setShowEvidence(false)}
+          imageUrl={evidenceModalData.imageUrl}
+          title={evidenceModalData.title}
+          complaintId={selectedComplaint.complaintId}
+          labName={selectedComplaint.labName}
+          onClose={() => setEvidenceModalData({ isOpen: false, imageUrl: '', title: '' })}
         />
       )}
     </div>

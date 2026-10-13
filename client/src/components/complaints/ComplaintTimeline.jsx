@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import EvidenceModal from './EvidenceModal';
 
 export default function ComplaintTimeline({ complaint, history = [] }) {
-  const [showEvidence, setShowEvidence] = useState(false);
+  const [evidenceModal, setEvidenceModal] = useState({ isOpen: false, imageUrl: '', title: '' });
 
   if (!complaint) return null;
 
@@ -231,17 +231,38 @@ export default function ComplaintTimeline({ complaint, history = [] }) {
         </div>
       </div>
 
-      {/* Photographic Evidence Link */}
-      {complaint.imageUrl && (
-        <div className="pt-2 border-t border-outline-variant/30">
-          <button
-            type="button"
-            onClick={() => setShowEvidence(true)}
-            className="text-primary font-semibold text-body-sm flex items-center gap-1.5 hover:underline cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">image</span>
-            <span>View Uploaded Photographic Evidence</span>
-          </button>
+      {/* Photographic Evidence Links */}
+      {(complaint.imageUrl || complaint.completionProofImageUrl) && (
+        <div className="pt-2 border-t border-outline-variant/30 flex flex-wrap gap-4">
+          {complaint.imageUrl && (
+            <button
+              type="button"
+              onClick={() => setEvidenceModal({
+                isOpen: true,
+                imageUrl: complaint.imageUrl,
+                title: 'Equipment Fault Photographic Evidence',
+              })}
+              className="text-primary font-semibold text-body-sm flex items-center gap-1.5 hover:underline cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">image</span>
+              <span>View Fault Evidence Photo</span>
+            </button>
+          )}
+
+          {complaint.completionProofImageUrl && (
+            <button
+              type="button"
+              onClick={() => setEvidenceModal({
+                isOpen: true,
+                imageUrl: complaint.completionProofImageUrl,
+                title: 'Work Completion Photographic Proof',
+              })}
+              className="text-emerald-700 font-semibold text-body-sm flex items-center gap-1.5 hover:underline cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px] text-emerald-600">verified</span>
+              <span>View Work Completion Photo</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -268,11 +289,13 @@ export default function ComplaintTimeline({ complaint, history = [] }) {
         </div>
       )}
 
-      {showEvidence && (
+      {evidenceModal.isOpen && (
         <EvidenceModal
-          imageUrl={complaint.imageUrl}
-          title={complaint.title}
-          onClose={() => setShowEvidence(false)}
+          imageUrl={evidenceModal.imageUrl}
+          title={evidenceModal.title}
+          complaintId={complaint.complaintId}
+          labName={complaint.labName}
+          onClose={() => setEvidenceModal({ isOpen: false, imageUrl: '', title: '' })}
         />
       )}
     </div>

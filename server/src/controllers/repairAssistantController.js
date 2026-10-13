@@ -105,7 +105,7 @@ const startRepair = async (req, res, next) => {
 const completeRepair = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { resolutionRemarks } = req.body;
+    const { resolutionRemarks, completionProofImageUrl } = req.body;
 
     if (!resolutionRemarks || resolutionRemarks.trim().length < 5) {
       return ApiResponse.error(res, 'Resolution remarks are required (minimum 5 characters).', 400);
@@ -125,6 +125,9 @@ const completeRepair = async (req, res, next) => {
     complaint.resolutionRemarks = resolutionRemarks.trim();
     complaint.resolvedBy = req.user._id;
     complaint.resolvedAt = new Date();
+    if (completionProofImageUrl && completionProofImageUrl.trim()) {
+      complaint.completionProofImageUrl = completionProofImageUrl.trim();
+    }
 
     await complaint.save();
 

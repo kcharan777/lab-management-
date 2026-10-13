@@ -6,6 +6,7 @@ const {
   updateComplaintState,
   updateProgress,
   resolveComplaint,
+  addCompletionProof,
 } = require('../controllers/mainAdminController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorize } = require('../middleware/rbacMiddleware');
@@ -17,5 +18,6 @@ router.patch('/complaints/:id/accept', protect, authorize('MAIN_ADMIN'), assignC
 router.patch('/complaints/:id/status', protect, authorize('MAIN_ADMIN'), updateComplaintState);
 router.patch('/complaints/:id/progress', protect, authorize('MAIN_ADMIN', 'REPAIR_ASSISTANT'), updateProgress);
 router.patch('/complaints/:id/resolve', protect, authorize('MAIN_ADMIN', 'REPAIR_ASSISTANT'), resolveComplaint);
+router.patch('/complaints/:id/proof', protect, authorize('MAIN_ADMIN'), addCompletionProof);
 
 module.exports = router;

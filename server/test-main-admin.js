@@ -63,6 +63,7 @@ async function runMainAdminTests() {
         password: 'Password123!',
         role: 'STUDENT',
         department: 'CSE',
+        rollNumber: '21CSE099',
       });
 
       // Create HOD
@@ -74,14 +75,17 @@ async function runMainAdminTests() {
         department: 'CSE',
       });
 
-      // Create Main Admin
-      const mainAdmin = await User.create({
-        name: 'Chief Systems Engineer',
-        email: 'lead.admin@admintest.edu',
-        password: 'Password123!',
-        role: 'MAIN_ADMIN',
-        department: 'Campus Infrastructure',
-      });
+      // Find or create Main Admin (respecting singleton constraint)
+      let mainAdmin = await User.findOne({ role: 'MAIN_ADMIN' });
+      if (!mainAdmin) {
+        mainAdmin = await User.create({
+          name: 'Chief Systems Engineer',
+          email: 'lead.admin@admintest.edu',
+          password: 'Password123!',
+          role: 'MAIN_ADMIN',
+          department: 'Campus Infrastructure',
+        });
+      }
 
       const studentToken = generateToken(student._id, student.role);
       const hodToken = generateToken(hod._id, hod.role);
@@ -90,7 +94,9 @@ async function runMainAdminTests() {
       // Create verified complaint ready for Main Admin intake
       const complaint = await Complaint.create({
         complaintId: 'CMP-2026-9001',
+        reporter: student._id,
         studentId: student._id,
+        department: 'CSE',
         labName: 'High Performance Computing Lab',
         systemNumber: 'HPC-NODE-14',
         issueCategory: 'HARDWARE',
@@ -164,20 +170,21 @@ async function runMainAdminTests() {
         throw new Error(`Accept failed: ${JSON.stringify(res3.body)}`);
       }
       const acceptedData = res3.body.data;
-      if (acceptedData.status !== 'ACCEPTED') {
-        throw new Error(`Expected ACCEPTED, got ${acceptedData.status}`);
+      if (acceptedData.status !== 'ASSIGNED_TO_REPAIR_ASSISTANT') {
+        throw new Error(`Expected ASSIGNED_TO_REPAIR_ASSISTANT, got ${acceptedData.status}`);
       }
-      console.log(`✓ Complaint transitioned to: ${acceptedData.status}, Technician: ${acceptedData.mainAdminAction.technicianAssigned}`);
+      const techName = acceptedData.adminAction?.technicianAssigned || acceptedData.mainAdminAction?.technicianAssigned;
+      console.log(`✓ Complaint transitioned to: ${acceptedData.status}, Technician: ${techName}`);
 
-      // Check StatusHistory for ACCEPTED
+      // Check StatusHistory for ASSIGNED_TO_REPAIR_ASSISTANT
       const acceptHistory = await StatusHistory.findOne({
         complaintId: complaint._id,
-        status: 'ACCEPTED',
+        newStatus: 'ASSIGNED_TO_REPAIR_ASSISTANT',
       });
       if (!acceptHistory) {
-        throw new Error('StatusHistory for ACCEPTED not found!');
+        throw new Error('StatusHistory for ASSIGNED_TO_REPAIR_ASSISTANT not found!');
       }
-      console.log('✓ StatusHistory recorded for Admin Acceptance.');
+      console.log('✓ StatusHistory recorded for Admin Acceptance/Assignment.');
 
       // TEST 4: Main Admin updates progress
       console.log('\n[Test 4]: Main Admin records repair progress note');
@@ -201,12 +208,13 @@ async function runMainAdminTests() {
       if (inProgressData.status !== 'IN_PROGRESS') {
         throw new Error(`Expected IN_PROGRESS, got ${inProgressData.status}`);
       }
-      console.log(`✓ Complaint transitioned to: ${inProgressData.status}, Notes count: ${inProgressData.mainAdminAction.progressNotes.length}`);
+      const notesCount = (inProgressData.adminAction?.progressNotes || inProgressData.mainAdminAction?.progressNotes || []).length;
+      console.log(`✓ Complaint transitioned to: ${inProgressData.status}, Notes count: ${notesCount}`);
 
       // Check StatusHistory for IN_PROGRESS
       const progHistory = await StatusHistory.findOne({
         complaintId: complaint._id,
-        status: 'IN_PROGRESS',
+        newStatus: 'IN_PROGRESS',
       });
       if (!progHistory) {
         throw new Error('StatusHistory for IN_PROGRESS not found!');
@@ -259,10 +267,10 @@ async function runMainAdminTests() {
       }
       console.log(`✓ Complaint successfully resolved. Status: ${resolvedData.status}, ResolvedAt: ${resolvedData.resolvedAt}`);
 
-      // Check StatusHistory for RESOLVED
+      // Check StatusHistory for RESOLVED or CLOSED
       const resolveHistory = await StatusHistory.findOne({
         complaintId: complaint._id,
-        status: 'RESOLVED',
+        newStatus: { $in: ['RESOLVED', 'CLOSED'] },
       });
       if (!resolveHistory) {
         throw new Error('StatusHistory for RESOLVED not found!');
@@ -273,7 +281,7 @@ async function runMainAdminTests() {
       const studentNotif = await Notification.findOne({
         recipient: student._id,
         complaintId: complaint._id,
-        type: 'RESOLUTION',
+        type: 'RESOLVED',
       });
       if (!studentNotif) {
         throw new Error('Student resolution notification not found!');

@@ -17,7 +17,8 @@ export const repairAssistantService = {
   },
 
   // Complete and resolve the repair task
-  completeRepair: async (id, resolutionRemarks) => {
-    return await api.patch(`/repair-assistant/tasks/${id}/complete`, { resolutionRemarks });
+  completeRepair: async (id, payload) => {
+    const body = typeof payload === 'string' ? { resolutionRemarks: payload } : payload;
+    return await api.patch(`/repair-assistant/tasks/${id}/complete`, body);
   },
 };

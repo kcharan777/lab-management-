@@ -29,6 +29,7 @@ async function runModelTests() {
       password: rawPassword,
       role: 'STUDENT',
       department: 'Computer Science & Engineering',
+      rollNumber: '21CS001',
     });
     await studentUser.save();
 
@@ -77,7 +78,9 @@ async function runModelTests() {
     console.log('[Test 4]: Creating test complaint...');
     const complaint = new Complaint({
       complaintId,
+      reporter: studentUser._id,
       studentId: studentUser._id,
+      department: 'Computer Science & Engineering',
       labName: 'Test Automation Lab 99',
       systemNumber: 'NODE-TEST-01',
       issueCategory: 'HARDWARE',
@@ -93,8 +96,12 @@ async function runModelTests() {
     console.log('[Test 5]: Creating StatusHistory audit log...');
     const historyRecord = new StatusHistory({
       complaintId: complaint._id,
-      status: 'SUBMITTED',
-      updatedBy: studentUser._id,
+      action: 'PROBLEM_REPORTED',
+      previousStatus: null,
+      newStatus: 'SUBMITTED',
+      user: studentUser._id,
+      userName: studentUser.name,
+      userRole: studentUser.role,
       remarks: 'Initial complaint filed via Student Portal.',
     });
     await historyRecord.save();

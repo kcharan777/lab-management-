@@ -206,6 +206,11 @@ const complaintSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    completionProofImageUrl: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     resolvedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

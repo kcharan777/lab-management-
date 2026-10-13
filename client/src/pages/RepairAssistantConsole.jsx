@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/common/Toast';
 import { repairAssistantService } from '../services/repairAssistantService';
+import { complaintService } from '../services/complaintService';
 import EvidenceModal from '../components/complaints/EvidenceModal';
 
 export default function RepairAssistantConsole() {
@@ -22,7 +23,9 @@ export default function RepairAssistantConsole() {
   const [showResolveModal, setShowResolveModal] = useState(false);
   const [progressNote, setProgressNote] = useState('');
   const [resolutionRemarks, setResolutionRemarks] = useState('');
-  const [showEvidence, setShowEvidence] = useState(false);
+  const [proofImageUrl, setProofImageUrl] = useState('');
+  const [proofUploading, setProofUploading] = useState(false);
+  const [evidenceModal, setEvidenceModal] = useState({ isOpen: false, imageUrl: '', title: '' });
 
   const fetchTasks = async () => {
     try {
@@ -86,6 +89,25 @@ export default function RepairAssistantConsole() {
     }
   };
 
+  const handleUploadProofImage = async (file) => {
+    if (!file) return;
+    try {
+      setProofUploading(true);
+      const res = await complaintService.uploadEvidenceImage(file);
+      const uploadedUrl = res?.data?.imageUrl || res?.imageUrl;
+      if (uploadedUrl) {
+        setProofImageUrl(uploadedUrl);
+        addToast('Completion proof photo uploaded successfully!', 'success');
+      } else {
+        throw new Error('Image uploaded, but server did not return a valid URL.');
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to upload proof photo', 'error');
+    } finally {
+      setProofUploading(false);
+    }
+  };
+
   const handleCompleteRepair = async () => {
     if (!selectedTask) return;
     if (!resolutionRemarks.trim() || resolutionRemarks.trim().length < 5) {
@@ -94,11 +116,16 @@ export default function RepairAssistantConsole() {
     }
     try {
       setActionLoading(true);
-      const res = await repairAssistantService.completeRepair(selectedTask.complaintId, resolutionRemarks);
+      const payload = {
+        resolutionRemarks: resolutionRemarks.trim(),
+        completionProofImageUrl: proofImageUrl.trim() || undefined,
+      };
+      const res = await repairAssistantService.completeRepair(selectedTask.complaintId, payload);
       if (res.success) {
         addToast(`Repair task ${selectedTask.complaintId} completed! HOD and Lab In-Charge notified.`, 'success');
         setShowResolveModal(false);
         setResolutionRemarks('');
+        setProofImageUrl('');
         fetchTasks();
       }
     } catch (err) {
@@ -282,20 +309,35 @@ export default function RepairAssistantConsole() {
                 </p>
               </div>
 
-              {/* Evidence Photograph */}
-              {selectedTask.imageUrl && (
-                <div>
-                  <span className="text-secondary font-label-sm uppercase font-bold block mb-1">Photographic Evidence</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowEvidence(true)}
-                    className="p-2 bg-surface-container-low border border-outline-variant rounded-lg flex items-center gap-2 text-primary font-semibold text-body-sm hover:bg-surface-container cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[20px]">image</span>
-                    <span>View Photographic Evidence</span>
-                  </button>
-                </div>
-              )}
+              {/* Evidence Photographs */}
+              <div className="flex flex-wrap gap-4">
+                {selectedTask.imageUrl && (
+                  <div>
+                    <span className="text-secondary font-label-sm uppercase font-bold block mb-1">Reported Fault Evidence</span>
+                    <button
+                      type="button"
+                      onClick={() => setEvidenceModal({ isOpen: true, imageUrl: selectedTask.imageUrl, title: 'Equipment Fault Photographic Evidence' })}
+                      className="p-2 bg-surface-container-low border border-outline-variant rounded-lg flex items-center gap-2 text-primary font-semibold text-body-sm hover:bg-surface-container cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">image</span>
+                      <span>View Fault Evidence</span>
+                    </button>
+                  </div>
+                )}
+                {selectedTask.completionProofImageUrl && (
+                  <div>
+                    <span className="text-emerald-700 font-label-sm uppercase font-bold block mb-1">Work Completion Proof</span>
+                    <button
+                      type="button"
+                      onClick={() => setEvidenceModal({ isOpen: true, imageUrl: selectedTask.completionProofImageUrl, title: 'Work Completion Photographic Proof' })}
+                      className="p-2 bg-emerald-50 border border-emerald-300 rounded-lg flex items-center gap-2 text-emerald-800 font-semibold text-body-sm hover:bg-emerald-100 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[20px] text-emerald-600">verified</span>
+                      <span>View Completion Photo</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Action Buttons */}
               <div className="pt-4 border-t border-outline-variant/30 flex flex-wrap gap-2.5">
@@ -386,9 +428,12 @@ export default function RepairAssistantConsole() {
       {showResolveModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant max-w-md w-full space-y-4 shadow-xl">
-            <h3 className="font-headline-sm font-bold text-on-surface">Complete & Resolve Work Order</h3>
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-emerald-600 text-[24px]">task_alt</span>
+              <h3 className="font-headline-sm font-bold text-on-surface">Complete & Resolve Work Order</h3>
+            </div>
             <p className="text-body-sm text-secondary">
-              Describe the technical fix applied. The HOD and Lab In-Charge will be notified immediately.
+              Describe the technical fix applied. The HOD, Lab In-Charge, and student will be notified immediately.
             </p>
             <textarea
               rows={4}
@@ -397,20 +442,71 @@ export default function RepairAssistantConsole() {
               placeholder="e.g. Replaced faulty RAM module (Kingston 8GB DDR4), booted into Ubuntu Linux successfully, stress tested for 30 minutes without error."
               className="w-full bg-surface-container-low text-on-surface font-body-md rounded-lg p-3 border border-outline-variant focus:outline-none focus:ring-2 focus:ring-emerald-600"
             />
+
+            {/* Optional proof image upload */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-secondary block">Work Completion Proof (Optional)</label>
+              {proofImageUrl ? (
+                <div className="relative">
+                  <img src={proofImageUrl} alt="Proof preview" className="w-full h-32 object-cover rounded-lg border border-emerald-300" />
+                  <button
+                    type="button"
+                    onClick={() => setProofImageUrl('')}
+                    className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center text-[12px] hover:bg-red-600 cursor-pointer"
+                  >×</button>
+                  <div className="mt-1.5 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                    Proof image attached
+                  </div>
+                </div>
+              ) : (
+                <label
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer?.files?.[0]) {
+                      handleUploadProofImage(e.dataTransfer.files[0]);
+                    }
+                  }}
+                  className="flex items-center gap-2 p-3 bg-surface-container-low border border-dashed border-outline-variant rounded-lg cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/40 transition-colors"
+                >
+                  {proofUploading ? (
+                    <><div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /><span className="text-body-sm text-secondary">Uploading...</span></>
+                  ) : (
+                    <><span className="material-symbols-outlined text-[20px] text-secondary">add_photo_alternate</span><span className="text-body-sm text-secondary">Click to attach repair proof photo</span></>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleUploadProofImage(e.target.files[0]);
+                      }
+                      e.target.value = '';
+                    }}
+                    disabled={proofUploading}
+                  />
+                </label>
+              )}
+            </div>
+
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowResolveModal(false)}
+                onClick={() => { setShowResolveModal(false); setProofImageUrl(''); }}
                 className="btn-tactile-secondary px-4 py-2 rounded-lg font-semibold"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={actionLoading}
+                disabled={actionLoading || proofUploading}
                 onClick={handleCompleteRepair}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2 rounded-lg"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2 rounded-lg cursor-pointer flex items-center gap-1.5"
               >
+                <span className="material-symbols-outlined text-[18px]">check_circle</span>
                 Confirm Resolution
               </button>
             </div>
@@ -419,11 +515,13 @@ export default function RepairAssistantConsole() {
       )}
 
       {/* Evidence Modal */}
-      {showEvidence && selectedTask && (
+      {evidenceModal.isOpen && selectedTask && (
         <EvidenceModal
-          imageUrl={selectedTask.imageUrl}
-          title={selectedTask.title}
-          onClose={() => setShowEvidence(false)}
+          imageUrl={evidenceModal.imageUrl}
+          title={evidenceModal.title}
+          complaintId={selectedTask.complaintId}
+          labName={selectedTask.labName}
+          onClose={() => setEvidenceModal({ isOpen: false, imageUrl: '', title: '' })}
         />
       )}
     </div>

@@ -23,7 +23,7 @@ const STATUS_META = {
 
 const getStatusMeta = (s) => STATUS_META[s] || { label: s.replace(/_/g, " "), color: "bg-slate-100 text-slate-700 border-slate-300", step: 0 };
 const fmt = (d) => d ? new Date(d).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : null;
-const fmtShort = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "�";
+const fmtShort = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "--";
 
 function MiniStepper({ complaint }) {
   const status = complaint.status;
@@ -32,8 +32,8 @@ function MiniStepper({ complaint }) {
   const steps = [
     { n: 1, label: "Submitted" },
     { n: 2, label: "Lab Incharge" },
-    { n: 3, label: "HOD" },
-    { n: 4, label: "Admin/Tech" },
+    { n: 3, label: "HOD Sign-off" },
+    { n: 4, label: "Tech Repair" },
     { n: 5, label: "Resolved" },
   ];
   return (
@@ -44,15 +44,19 @@ function MiniStepper({ complaint }) {
         return (
           <React.Fragment key={s.n}>
             <div className="flex flex-col items-center shrink-0">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${done ? "bg-emerald-600 border-emerald-600 text-white" : active ? "bg-primary border-primary text-white" : isRejected ? "bg-surface border-outline-variant text-secondary" : "bg-surface border-outline-variant text-secondary"}`}>
-                {done ? "?" : s.n}
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${done ? "bg-emerald-600 border-emerald-600 text-white shadow-sm" : active ? "bg-primary border-primary text-white shadow-[0_0_10px_rgba(37,99,235,0.3)] animate-pulse" : isRejected ? "bg-surface border-outline-variant text-secondary opacity-40" : "bg-surface-container border-outline-variant/50 text-secondary"}`}>
+                {done ? (
+                  <span className="material-symbols-outlined text-[13px]">check</span>
+                ) : (
+                  s.n
+                )}
               </div>
-              <span className={`text-[9px] mt-0.5 font-semibold text-center leading-tight max-w-[44px] ${done ? "text-emerald-700" : active ? "text-primary" : "text-secondary/50"}`}>
+              <span className={`text-[9px] mt-1 font-semibold text-center leading-tight max-w-[48px] ${done ? "text-emerald-700 font-bold" : active ? "text-primary font-bold" : "text-secondary/60"}`}>
                 {s.label}
               </span>
             </div>
             {i < steps.length - 1 && (
-              <div className={`h-0.5 flex-1 mx-0.5 rounded ${done && currentStep > s.n ? "bg-emerald-500" : "bg-outline-variant/30"}`} />
+              <div className={`h-0.5 flex-1 mx-1 rounded transition-colors ${done && currentStep > s.n ? "bg-emerald-500" : "bg-outline-variant/30"}`} />
             )}
           </React.Fragment>
         );
@@ -64,8 +68,8 @@ function MiniStepper({ complaint }) {
 function ApprovalStep({ num, title, done, active, rejected, date, by, role, remarks, action }) {
   return (
     <div className="flex items-start gap-3">
-      <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold border-2 mt-0.5 ${done ? "bg-emerald-600 border-emerald-600 text-white" : rejected ? "bg-red-600 border-red-600 text-white" : active ? "bg-primary border-primary text-white" : "bg-surface border-outline-variant text-secondary"}`}>
-        {done ? "?" : rejected ? "?" : num}
+      <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold border-2 mt-0.5 ${done ? "bg-emerald-600 border-emerald-600 text-white shadow-sm" : rejected ? "bg-red-600 border-red-600 text-white shadow-sm" : active ? "bg-primary border-primary text-white shadow-[0_0_10px_rgba(37,99,235,0.3)] animate-pulse" : "bg-surface border-outline-variant text-secondary"}`}>
+        {done ? <span className="material-symbols-outlined text-[15px]">check</span> : rejected ? <span className="material-symbols-outlined text-[15px]">close</span> : num}
       </div>
       <div className={`flex-1 rounded-xl p-3 border text-[12px] ${done ? "bg-emerald-50 border-emerald-200" : rejected ? "bg-red-50 border-red-200" : active ? "bg-primary/5 border-primary/30" : "bg-surface-container-low border-outline-variant/30 opacity-50"}`}>
         <div className="flex items-center justify-between mb-1 gap-2">
@@ -201,8 +205,19 @@ function ComplaintDetailPanel({ complaint, history, onClose }) {
 
           {complaint.imageUrl && (
             <div className="border-t border-outline-variant/30 pt-4">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-secondary mb-2">Photographic Evidence</p>
-              <img src={complaint.imageUrl} alt="Evidence" className="rounded-lg border border-outline-variant/30 max-h-48 object-cover" />
+              <p className="text-[11px] font-bold uppercase tracking-wider text-secondary mb-2">Reported Defect Photographic Evidence</p>
+              <img src={complaint.imageUrl} alt="Defect Evidence" className="rounded-lg border border-outline-variant/30 max-h-48 object-cover" />
+            </div>
+          )}
+
+          {complaint.completionProofImageUrl && (
+            <div className="border-t border-outline-variant/30 pt-4 p-4 rounded-xl bg-emerald-50/70 border border-emerald-200">
+              <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-[12px] uppercase tracking-wider mb-2">
+                <span className="material-symbols-outlined text-[18px] text-emerald-600">verified</span>
+                <span>Work Completion Photographic Proof</span>
+              </div>
+              <img src={complaint.completionProofImageUrl} alt="Work Completion Proof" className="rounded-lg border border-emerald-300 max-h-56 object-cover shadow-sm" />
+              <p className="text-[11px] text-emerald-700 mt-2 font-medium">Verified photographic evidence uploaded upon repair completion.</p>
             </div>
           )}
         </div>
@@ -229,15 +244,15 @@ export default function StudentHub() {
         category: filterCategory !== "ALL" ? filterCategory : undefined,
         search: searchQuery || undefined,
       });
-      if (res.success && res.data) {
-        const fetched = res.data.complaints || [];
+      if (res.success) {
+        const fetched = Array.isArray(res.data) ? res.data : [];
         setComplaints(fetched);
-        const t = res.data.telemetry || res.data.kpis || {};
+        const t = res.telemetry || {};
         setKpis({
-          total: t.total || fetched.length,
-          pending: t.pending || 0,
-          inProgress: t.inProgress || 0,
-          resolved: t.resolved || 0,
+          total: t.total ?? fetched.length,
+          pending: t.pending ?? 0,
+          inProgress: t.inProgress ?? 0,
+          resolved: t.resolved ?? 0,
         });
       }
     } catch (err) {
@@ -263,56 +278,87 @@ export default function StudentHub() {
   useEffect(() => { fetchStudentData(); }, [filterCategory]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-outline-variant/30">
-        <div>
-          <div className="flex items-center gap-2 text-[12px] text-secondary mb-1">
-            <span>Student Portal</span>
-            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="text-primary font-semibold">My Complaints & Progress</span>
+    <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-6 space-y-6 animate-in fade-in duration-300">
+      {/* 1. Student Innovation Welcome Hero */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 p-6 sm:p-7 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white shadow-xl border border-indigo-800/40 relative overflow-hidden">
+        {/* Ambient neon light orbs */}
+        <div className="absolute top-0 right-10 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10 space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[11px] font-bold border border-cyan-500/30 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+              STUDENT INNOVATION TERMINAL
+            </span>
+            {user?.rollNumber && (
+              <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-slate-200 font-mono text-[11px] font-semibold border border-white/15">
+                ID: {user.rollNumber}
+              </span>
+            )}
+            {user?.department && (
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-mono text-[11px] font-medium border border-blue-500/30">
+                {user.department}
+              </span>
+            )}
           </div>
-          <h1 className="font-bold text-2xl text-on-surface tracking-tight">Student Hub & Issue Tracking</h1>
-          <p className="text-secondary text-body-sm mt-1">Track every stage of your lab grievance � from submission to resolution.</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+            Welcome, {user?.name || "Student"}
+          </h1>
+          <p className="text-sm text-slate-300 max-w-xl leading-relaxed">
+            Directly report laboratory hardware faults, monitor real-time 4-step faculty approvals, and review verified photo repairs.
+          </p>
         </div>
-        <Link to="/raise-issue" className="btn-tactile-primary px-4 py-2.5 rounded-lg font-bold text-body-sm flex items-center gap-2 self-start cursor-pointer">
+
+        <Link
+          to="/raise-issue"
+          className="relative z-10 px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm shadow-[0_0_25px_rgba(6,182,212,0.4)] flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0 self-start md:self-auto cursor-pointer"
+        >
           <span className="material-symbols-outlined text-[20px]">add_circle</span>
-          <span>Raise New Issue</span>
+          <span>Report New Lab Issue</span>
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* 2. Interactive KPI Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total Filed",       value: kpis.total,      icon: "receipt_long", color: "text-on-surface",  bg: "bg-surface-container-high" },
-          { label: "Awaiting Approval", value: kpis.pending,    icon: "hourglass_top", color: "text-amber-700",  bg: "bg-amber-50" },
-          { label: "Under Repair",      value: kpis.inProgress, icon: "build_circle",  color: "text-primary",    bg: "bg-primary/10" },
-          { label: "Resolved",          value: kpis.resolved,   icon: "task_alt",      color: "text-emerald-700",bg: "bg-emerald-50" },
+          { label: "Total Logged Issues", value: kpis.total, icon: "receipt_long", gradient: "from-blue-600 to-indigo-600", lightBg: "bg-blue-50 border-blue-200 text-blue-900", badgeColor: "text-blue-600" },
+          { label: "Awaiting Verification", value: kpis.pending, icon: "hourglass_top", gradient: "from-amber-500 to-orange-600", lightBg: "bg-amber-50 border-amber-200 text-amber-900", badgeColor: "text-amber-600" },
+          { label: "Active Diagnostics/Repair", value: kpis.inProgress, icon: "build_circle", gradient: "from-purple-600 to-indigo-600", lightBg: "bg-purple-50 border-purple-200 text-purple-900", badgeColor: "text-purple-600" },
+          { label: "Certified Resolved", value: kpis.resolved, icon: "task_alt", gradient: "from-emerald-500 to-teal-600", lightBg: "bg-emerald-50 border-emerald-200 text-emerald-900", badgeColor: "text-emerald-600" },
         ].map(k => (
-          <div key={k.label} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 flex items-center gap-3 shadow-sm">
-            <div className={`w-10 h-10 rounded-lg ${k.bg} flex items-center justify-center shrink-0`}>
-              <span className={`material-symbols-outlined text-[22px] ${k.color}`}>{k.icon}</span>
+          <div
+            key={k.label}
+            className={`rounded-2xl border p-4 sm:p-5 flex items-center gap-3.5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-surface-container-lowest border-outline-variant/30`}
+          >
+            <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${k.gradient} text-white flex items-center justify-center shrink-0 shadow-md`}>
+              <span className="material-symbols-outlined text-[24px]">{k.icon}</span>
             </div>
             <div>
-              <p className={`font-bold text-2xl leading-none ${k.color}`}>{loading ? "�" : k.value}</p>
-              <p className="text-secondary text-[12px] font-medium mt-0.5">{k.label}</p>
+              <p className="font-extrabold text-2xl sm:text-3xl leading-none text-on-surface">
+                {loading ? "--" : k.value}
+              </p>
+              <p className="text-secondary text-[12px] font-semibold mt-1">{k.label}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <section className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-outline-variant/30">
+      {/* 3. Grievance Ledger */}
+      <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant/30 overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 border-b border-outline-variant/30 bg-surface-container-low/40">
           <div>
-            <h2 className="font-bold text-on-surface">Grievance Ledger</h2>
-            <p className="text-secondary text-[12px]">Click any complaint to see the full approval progress & status details.</p>
+            <h2 className="font-bold text-on-surface text-lg">My Grievance Ledger</h2>
+            <p className="text-secondary text-[12px]">Click any ticket to review the immutable audit trail & work completion proof.</p>
           </div>
           <div className="flex items-center gap-2">
             <form onSubmit={e => { e.preventDefault(); fetchStudentData(); }} className="relative">
-              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search complaint�"
-                className="bg-surface-container-low text-on-surface text-body-sm rounded-lg p-2 pl-8 border border-outline-variant/50 focus:outline-none focus:ring-1 focus:ring-primary w-44" />
-              <span className="material-symbols-outlined absolute left-2 top-2.5 text-secondary text-[16px]">search</span>
+              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search complaint..."
+                className="bg-surface-container-low text-on-surface text-body-sm rounded-xl p-2.5 pl-8 border border-outline-variant/50 focus:outline-none focus:ring-2 focus:ring-primary w-44 transition-all" />
+              <span className="material-symbols-outlined absolute left-2.5 top-3 text-secondary text-[16px]">search</span>
             </form>
             <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
-              className="bg-surface-container-low text-on-surface text-body-sm rounded-lg p-2 border border-outline-variant/50 cursor-pointer font-medium focus:outline-none">
+              className="bg-surface-container-low text-on-surface text-body-sm rounded-xl p-2.5 border border-outline-variant/50 cursor-pointer font-medium focus:outline-none">
               <option value="ALL">All Categories</option>
               <option value="HARDWARE">Hardware</option>
               <option value="SOFTWARE">Software</option>
@@ -321,7 +367,7 @@ export default function StudentHub() {
               <option value="PERIPHERAL">Peripheral</option>
               <option value="OTHER">Other</option>
             </select>
-            <button onClick={fetchStudentData} className="p-2 rounded-lg border border-outline-variant/50 hover:bg-surface-container-low cursor-pointer" title="Refresh">
+            <button onClick={fetchStudentData} className="p-2.5 rounded-xl border border-outline-variant/50 hover:bg-surface-container-low cursor-pointer transition-colors" title="Refresh">
               <span className="material-symbols-outlined text-secondary text-[18px]">refresh</span>
             </button>
           </div>
@@ -329,8 +375,8 @@ export default function StudentHub() {
 
         {loading ? (
           <div className="p-12 text-center text-secondary">
-            <span className="material-symbols-outlined text-[40px]">progress_activity</span>
-            <p className="mt-2 text-body-sm">Loading your complaints�</p>
+            <span className="material-symbols-outlined text-[40px] animate-spin">progress_activity</span>
+            <p className="mt-2 text-body-sm">Loading your complaints...</p>
           </div>
         ) : complaints.length === 0 ? (
           <div className="p-12 text-center space-y-3">
@@ -353,11 +399,11 @@ export default function StudentHub() {
                         <span className="text-[11px] px-2 py-0.5 rounded bg-surface-container text-secondary font-medium">{c.issueCategory}</span>
                         <span className="text-[11px] text-secondary font-mono">{fmtShort(c.createdAt)}</span>
                       </div>
-                      <p className="font-semibold text-on-surface text-body-sm truncate">{c.title || `${c.issueCategory} � ${c.labName}`}</p>
+                      <p className="font-semibold text-on-surface text-body-sm truncate">{c.title || `${c.issueCategory} • ${c.labName}`}</p>
                       <p className="text-secondary text-[12px] mt-0.5">
                         <span className="material-symbols-outlined text-[13px] align-text-bottom mr-0.5">science</span>
                         {c.labName}
-                        <span className="mx-1.5 text-outline-variant">�</span>
+                        <span className="mx-1.5 text-outline-variant">•</span>
                         <span className="font-mono">{c.systemNumber}</span>
                       </p>
                     </div>

@@ -13,6 +13,22 @@ class ApiResponse {
     return res.status(statusCode).json(response);
   }
 
+  static paginated(res, data = [], meta = {}, message = null, statusCode = 200) {
+    const { page, limit, total, telemetry, ...rest } = meta;
+    const response = {
+      success: true,
+      data,
+      pagination: { page, limit, total, ...rest },
+    };
+    if (telemetry) {
+      response.telemetry = telemetry;
+    }
+    if (message) {
+      response.message = message;
+    }
+    return res.status(statusCode).json(response);
+  }
+
   static error(res, message = 'Internal Server Error', statusCode = 500, errors = null) {
     const response = {
       success: false,

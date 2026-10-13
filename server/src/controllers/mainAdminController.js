@@ -319,7 +319,7 @@ const updateProgress = async (req, res, next) => {
 const resolveComplaint = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { resolutionRemarks, closeImmediately = true } = req.body;
+    const { resolutionRemarks, closeImmediately = true, completionProofImageUrl } = req.body;
 
     if (!resolutionRemarks || !resolutionRemarks.trim() || resolutionRemarks.trim().length < 5) {
       return ApiResponse.error(
@@ -343,6 +343,9 @@ const resolveComplaint = async (req, res, next) => {
     complaint.resolvedAt = new Date();
     if (closeImmediately) {
       complaint.closedAt = new Date();
+    }
+    if (completionProofImageUrl && completionProofImageUrl.trim()) {
+      complaint.completionProofImageUrl = completionProofImageUrl.trim();
     }
 
     await complaint.save();
@@ -403,10 +406,50 @@ const resolveComplaint = async (req, res, next) => {
   }
 };
 
+/**
+ * @route   PATCH /api/main-admin/complaints/:id/proof
+ * @desc    Admin attaches a work-completion proof image to a resolved/closed ticket
+ * @access  Private (MAIN_ADMIN)
+ */
+const addCompletionProof = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { completionProofImageUrl } = req.body;
+
+    if (!completionProofImageUrl || !completionProofImageUrl.trim()) {
+      return ApiResponse.error(res, 'A valid proof image URL is required.', 400);
+    }
+
+    const complaint = await findComplaint(id);
+    if (!complaint) {
+      return ApiResponse.error(res, 'Complaint record not found.', 404);
+    }
+
+    complaint.completionProofImageUrl = completionProofImageUrl.trim();
+    await complaint.save();
+
+    await StatusHistory.create({
+      complaintId: complaint._id,
+      action: 'COMPLETION_PROOF_ADDED',
+      previousStatus: complaint.status,
+      newStatus: complaint.status,
+      user: req.user._id,
+      userName: req.user.name,
+      userRole: req.user.role,
+      remarks: 'Work completion proof image attached by admin.',
+    });
+
+    return ApiResponse.success(res, complaint, 'Completion proof image attached successfully.');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAdminComplaints,
   assignComplaint,
   updateComplaintState,
   updateProgress,
   resolveComplaint,
+  addCompletionProof,
 };
